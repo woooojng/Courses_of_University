@@ -1,0 +1,483 @@
+---
+title: "Country data for donation priority ranking"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+geometry: margin=0.3in
+---
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10}
+library(gridExtra)
+library(utils)
+#library(DataExplorer)
+library(tidyverse)
+library(plyr)
+
+library(factoextra)
+library(FactoMineR)
+#library(naniar)
+library(corrplot)
+library(cluster)
+library(arsenal)
+library(tidyverse)
+```
+About the Dataset and its Organization:
+
+HELP International is a global humanitarian NGO dedicated to combating poverty and providing essential amenities and relief to the people in underdeveloped countries, especially during disasters and natural calamities.
+
+Overview of the Dataset:
+
+The dataset utilized in this project was sourced from a public Kaggle profile. It encompasses information on 9 socio-economic and health factors for 167 countries:
+
+- country: Name of the country
+- child_mort: Child mortality rate, indicating the number of deaths of children under 5 years per 1000 live births
+- exports: Exports of goods and services per capita, presented as a percentage of the GDP per capita
+- health: Total health spending per capita, represented as a percentage of GDP per capita
+- imports: Imports of goods and services per capita, expressed as a percentage of the GDP per capita
+- Income: Net income per person
+- Inflation: Annual growth rate measurement of the Total GDP
+- life_expec: Average number of years a newborn child would live if the current mortality patterns persist
+- total_fer: Number of children that would be born to each woman if the current age-fertility rates remain constant
+- gdpp: GDP per capita, calculated as the Total GDP divided by the total population.
+
+```{r}
+country <- read.csv("Country-data.csv")
+#str(country)
+```
+
+
+1. Filtering missing values and classyfing data type
+```{r}
+
+summary(is.na(country))
+```
+
+Upon inspecting for missing values using the "summary(is.na())" function, it was determined that the dataset contains no missing values(result for missing values are FALSE).
+
+The current data types for each column are considered appropriate. However, there is an option to change the data type of the "country" column to a factor if desired. Therefore, the next step involves proceeding with the conversion of the data type for the "country" column.
+
+2. Exact Problem setting
+The primary goal is to classify countries based on their socio-economic and health factors, determining their overall level of development. As part of this process, the data type of the "country" column will be changed to a factor. This classification aims to facilitate the selection of a country for monetary donations based on its development status.
+
+```{r}
+country <- country |> mutate(country = as.factor(country))
+
+```
+3. Explore the pattern of data
+```{r, fig.width=6}
+summary(country)
+
+Vars_with_num <- which(map(country, is.numeric) == T) #Compute var.
+
+cat('There are', length(Vars_with_num), 'Numeric Variables from columns')
+allVar <- country[, Vars_with_num]
+#For non-NA values, pairwise correlation. 
+num_Var <- cor(allVar, use="pairwise.complete.obs")
+
+
+corrplot.mixed(num_Var, tl.col = "black", tl.pos = "lt")
+```
+
+
+The data distribution depicted above unveils a notable disparity in the quality of life among countries, presenting a poignant scenario. Additionally, following the conducted inspection, it becomes imperative to normalize the data due to the distinct value ranges in the columns. Standardization is deemed essential to mitigate bias arising from disparate variance or covariance values.
+
+The correlation matrix serves as an initial tool for comprehending the interplay between variables and discerning potential relationships within final clusters. The outcomes highlight that the income/gdpp pair exhibits the highest correlation, succeeded by child_mort/total_fer and exports/imports. These correlations are sensible indicators for segmenting countries into clusters based on their overall development.
+
+Nevertheless, our objective is to encompass all variables within the dataset and classify the data accordingly. Therefore, the subsequent pivotal step involves dimension reduction.
+```{r, fig.height=3, fig.width=6}
+country |>
+  gather(Attributes, values, c(2:9)) |> 
+  ggplot(aes(y=values, x=Attributes,  fill=Attributes)) +
+  ylim(0, 900) +
+  geom_boxplot(show.legend=FALSE)  +
+  coord_flip()+
+
+  labs(title="Boxplot from all numerical variable") +
+  theme_minimal()+ theme(axis.text.x = element_text(angle = 60, vjust = 0.5, hjust=1))
+
+
+```
+
+Despite the presence of outliers in several variables, the decision has been made to retain them. These outliers potentially represent countries facing extremely dire circumstances and may qualify for financial assistance.
+
+Moving on to the next step:
+
+4. Rescaling Data
+
+Given that the first column in the dataset is of string type, it is necessary to exclude it before applying the dataset to the `scale()` function. Including any numeric data type in the `scale()` function would lead to an error.
+
+```{r}
+scale <- country |> mutate_at(c(2:10), funs(c(scale(.))))
+
+head(scale)
+```
+After comparing the summary results of the "country" object and the "scale" object, it is evident that there is no significant difference in the range of values for each column in the "scale" object. The data in each column exhibits the same minimum and maximum range of values, providing improved results during the machine learning modeling process.
+
+5. Principal Component Analysis
+
+Principal Component Analysis (PCA) is a widely used dimensionality reduction technique that decreases the dimensionality of large datasets by transforming a large set of variables into a smaller set that retains most of the information from the larger set.
+
+Reducing variables in a dataset may lead to a slight decrease in accuracy, but the main advantage of dimensionality reduction is that it trades a small amount of accuracy for simplicity. Smaller datasets are simpler to explore and visualize, making it easier and faster for machine learning algorithms to process without unnecessary variables.
+
+5.1 Basic Computing for PCA
+
+In R, PCA can be performed using the `prcomp()` function. However, implementing the `prcomp()` function within the `mutate_at()` function is not possible. Therefore, numeric values must be separated before conducting PCA.
+```{r}
+rownames(scale) <- scale[,"country"]
+
+scale <- scale %>% select(-country)
+
+head(scale)
+```
+
+```{r}
+PCAcountry <- prcomp(scale)
+PCAcountry
+```
+Interpretation of PCA Components:
+
+The PCA components can be interpreted in multiple ways.
+
+1. Principal Component 1 (PC1):
+   - Positively associated with: Exports, health, imports, income, life expectancy, and GDP per capita (gdpp).
+   - Negatively associated with: Child mortality (child_mort), inflation, and total fertility rate (total_fer).
+   - Interpretation: PC1 can be viewed as a measure of a country's stability. A high score on PC1 indicates higher stability, characterized by positive attributes such as high income, life expectancy, and GDP, and lower values in negative attributes like child mortality, inflation, and total fertility rate.
+
+2. Coefficients and Variable Importance:
+   - The absolute values of coefficients indicate the importance of variables in calculating each component.
+   - Example: In PC7, "exports" has the largest coefficient, suggesting that PC7 heavily relies on information from the "exports" variable.
+
+3. Biplot Visualization:
+   - The biplot() function is useful for observing overall data distribution using two principal components (PCs).
+   - Goals include identifying similarities, outliers, understanding variable correlations, and assessing their contributions to each PC.
+
+These interpretations provide valuable insights into how different variables contribute to each principal component and help in understanding the underlying structure of the data.
+```{r}
+#biplot(PCAcountry, cex = 0.7)
+biplot(PCAcountry, xlab = "1st Principal Component", ylab = "2nd Principal Component ", scale = F, cex = 0.5)
+```
+
+1st Principal Component:
+The plot generated from the biplot() function shows that there are no clear outliers in the dataset. However, it does reveal a strong correlation between the columns gdpp and income, as well as between the columns total_fer and child_mort. The biplot() function also allows us to visualize the contribution of each variable to each principal component, providing further insight into the relationship between the variables and PCs.\
+
+2nd Principal Component:
+The graphical representation shows that 'child_mort' and 'total_fer' are positively correlated and move in the same direction on PC1, while 'income', 'gdpp', and 'life_expec' are positively correlated and move in the opposite direction on PC1.
+
+
+
+5.2 Choice for the number of PCA main vectors
+
+As previously mentioned, the main objective of PCA is to perform dimensionality reduction. To identify the minimum number of principal components that can explain most of the variation in the data, the summary() function can be used.\
+
+The summary() function returns three key pieces of information:\
+
+-Standard deviation: the amount of variance captured by each principal component.\
+-Proportion of variance: the proportion of the total variance in the data captured by each principal component.\
+-Cumulative proportion: the cumulative proportion of the total variance explained by all the principal components, starting from PC1 to PC9.\
+
+```{r}
+summary(PCAcountry)
+
+```
+That's correct. The number of principal components to be used in a PCA analysis is determined based on the amount of information needed to represent the data accurately. In this case, if a minimum of 80% of the information is required, then the number of principal components to be used would be from PC1-4. However, the exact number of principal components to be used may vary depending on the specific requirements of the project and the data being analyzed.\
+
+```{r}
+country_selected_pca <- data.frame(PCAcountry$x[,1:4])
+head(country_selected_pca)
+
+```
+
+5.3 Apply on the given data\
+\
+After selecting the appropriate number of principal components, they can be combined with the original data to create a new dataset that has fewer dimensions. This new dataset can then be used for further analysis, such as clustering or classification. The reduced number of dimensions can also make it easier to visualize and interpret the data.\
+
+```{r}
+PCAcountry <- country |>
+  select_if(purrr::negate(is.numeric)) |> 
+  cbind(country_selected_pca)
+
+glimpse(PCAcountry)
+
+```
+
+```{r}
+country_2 <- PCAcountry |> select(-country)
+
+head(country_2)
+```
+
+6.Clustering_K-Means
+
+6.1 Clustering by using PCA : Determining the optimum K-Value
+
+One popular method for determining the optimum K-Value is the Elbow Method. This method involves visualizing the results of the clustering algorithm for different K-Values and identifying the K-Value where the total within sum of squares (WSS) starts to level off, creating a "bend" in the graph that looks like an elbow.
+
+WSS is a measure of the variation that exists within each group, so a higher WSS value indicates a large degree of variability within the data set, while a lower value indicates that the data does not vary considerably from the mean value. The optimum K-Value is the point where increasing the number of K does not result in a considerable decrease in the total within sum of squares.
+
+By using PCA to reduce the dimensionality of the data, we can first identify the principal components that explain the most variance in the data and then use these components to perform the clustering analysis. This approach can help to improve the accuracy of the clustering algorithm and reduce the computational complexity of the analysis.
+
+
+a) Elbow Method
+
+The Elbow Method is a popular approach to determine the optimal K-Value for clustering, which is the number of groups desired as the final result in K-Means. To apply this method, the fviz_nbclust() function is used to visualize the Within Sum of Square (WSS) values. WSS measures the variation that exists within each group, with higher values indicating greater variability in the data set and lower values indicating less variation from the mean value. The optimal K-Value is reached when increasing the number of K does not significantly decrease the total WSS.\
+
+```{r, fig.height=3, fig.width=4}
+fviz_nbclust(country_2, kmeans, method = "wss") + 
+  labs(subtitle = "Elbow Method With PCA Value")
+```
+From the plots, it is evident that the optimum number of clusters or K value is 3. This is because, after k=3, increasing the number of clusters does not lead to a significant decrease in the total within sum of squares. Another approach to determine the optimum K value is to select the number of clusters at the "bend of an elbow" in the plot. However, this method can be considered biased as the location of the elbow is subjective and can vary from person to person.
+
+b) Silhouette Method
+
+The Silhouette Method is another approach to determine the optimal K-Value, which utilizes the same function as the Elbow Method. Function fviz_nbclust() will display a measure of the closeness of each point within a cluster to points in the neighboring clusters, allowing for visual assessment of parameters such as the number of clusters.
+
+The optimal K-Value can be determined by identifying the highest Average Silhouette Width value or the peak value from the plot, indicating that the average distance between each cluster is not too close.\
+```{r, fig.height=3, fig.width=4}
+fviz_nbclust(country_2, kmeans, method = "silhouette") + labs(subtitle = "Silhouette Method With PCA Value")
+```
+This statement correctly summarizes that based on the Silhouette Method, the optimal number of clusters for the given dataset is 4, as the Average Silhouette Width decreases after k=4.
+
+c) Gap Statistic
+
+The final technique is known as Gap Statistic. To observe the Gap Statistic, you can utilize the function fviz_nbclust(). Essentially, the Gap Statistic method selects the optimal value of K by determining the point at which the largest increase in within-cluster distance occurs. In other words, the optimal K-Value is the first instance at which the highest Gap Statistic value is achieved without dropping, as determined from the plot.
+
+According to the results obtained from the Gap Statistic approach, the ideal value of K is 3.
+
+```{r, fig.height=3, fig.width=4}
+fviz_nbclust(country_2, kmeans, method = "gap_stat") + labs(subtitle = "Gap Statistic method With PCA Value")
+```
+Out of the three methods described, two indicate that the optimal number of clusters is 3. Therefore, the data will be partitioned into 3 clusters.\
+
+Note that:
+the aforementioned testing methods provide a means of determining the number of clusters, other factors such as business requirements or mutual agreement can also be taken into account.
+
+Conducting clustering with PCA values.
+
+
+
+
+```{r}
+set.seed(123)
+
+kmpca <- kmeans(country_2, centers = 3) 
+
+country_2$cluster <- kmpca$cluster
+
+unique(country_2$cluster)
+```
+
+```{r, fig.height=3, fig.width=4}
+pcacluster <- fviz_cluster(kmpca, data = country_2, labelsize = 6) +
+   labs(subtitle = "K-Means PCA with K-Value 3") + xlim(c(-3, 3))
+
+pcacluster
+```
+RESULT from above :
+Hierarchical Cluster 1 = No help needed
+
+Hierarchical Cluster 2 = Might need help
+
+Hierarchical Cluster 3 = Help needed
+
+For the detailed explanation, we can see the profiling results in the next chapter.
+
+6.2 County Cluster Profiling
+The primary objective of profiling is to gain insights into the distinct features of each cluster. In this context, the aim is to determine which country cluster requires aid the most.
+To assess the characteristics of each cluster, the mean value of each column can be calculated.
+
+```{r}
+country_2 |>group_by(cluster) |>
+  summarise_all(mean)
+
+```
+Here's an alternative phrasing for the sentence you provided:\
+\
+It may be preferable to assign the clusters to their original values rather than using PCA for profiling, as this approach may be easier to interpret.
+
+```{r}
+country_observation <- scale # new object for clustering record
+country_observation$cluster <- kmpca$cluster
+
+country_observation |> group_by(cluster) |>
+  summarise_all(mean) #K-means property
+```
+Profiling Results:
+
+Cluster 3:
+Economically, the population of countries in Cluster 3 exhibit poor performance, as evidenced by negative average values for income, GDP per capita, and inflation. Moreover, Cluster 3 countries are not doing well in the industrial sector, as average values for exports and imports are negative.
+Health-wise, the situation is particularly concerning, as Cluster 3 countries show a high average child mortality rate, as well as negative average values for health and life expectancy.
+
+Cluster 2:
+Economically, countries in Cluster 2 are doing well, with positive average values for income, GDP per capita, and negative average value for inflation. Additionally, Cluster 2 can be considered a developed group of countries, given their high average values for exports and imports.
+Health-wise, the situation in Cluster 2 is mixed, with a high negative average for child mortality rate, but negative average values for health.
+
+Cluster 1:
+Economically, the majority of countries in Cluster 1 have poor economic conditions, as indicated by negative average values for income and GDP per capita. Additionally, Cluster 1 countries face challenges in the industrial sector, with negative average values for exports, but positive averages for imports.
+Health-wise, Cluster 1 countries show a low average value for health, but a positive situation regarding child mortality rate and life expectancy.
+
+7. Country Selection for Donations
+
+7.1 Selection Based on Cluster 3's Overall Profile
+
+According to the cluster profiling results, the countries in Cluster 3 are the most in need of aid compared to those in Clusters 2 and 1. To identify which countries within Cluster 3 should receive the donations first, we can compare their values to the average profiling value for Cluster 3. Countries with values lower than the average for Cluster 3 can be prioritized for aid, based on the mean values in right above table of the codes.
+
+```{r}
+country_observation %>% 
+  filter(child_mort > 1.322,
+         exports < -0.42,
+         health < -0.139,
+         imports < -0.155,
+         income < -0.687,
+         inflation < 0.39,
+         life_expec < -1.272,
+         total_fer > 1.35,
+         gdpp < -0.603)
+
+```
+
+
+7.2 Selection Based on Urgency of Economic and Health Parameters
+
+We can also allocate donation funds based on the economic and health segments that are most in need of aid. For this purpose, we can examine columns that are suitable for assessment.
+
+-Economic Sector
+For the economic sector, we can consider the following parameter columns: income, exports, imports, and GDP per capita (GDPP). To prioritize aid for countries in Cluster 1, the values for these columns should be lower than the average(the average table for each column for each cluster in the previous chapter) profiling value for Cluster 1.
+
+```{r}
+#Parameter filter
+ec <- country_observation |>
+  filter(exports < -0.42,
+         imports < -0.155,
+         income < -0.687,
+         gdpp < -0.603) |> 
+  select(income,exports,imports, gdpp)
+
+ec
+```
+
+It is difficult to determine which country is in most need of aid based solely on the economic sector results we have obtained so far. Although the 21 countries we have identified have an average value below that of the Cluster 3 profiling for columns such as income, exports, imports, and GDPP, it would be wise to prioritize countries with the lowest average value for these parameters.
+
+To help identify which country should receive aid first, we can create visualizations of the data.
+
+```{r}
+#transfrom negative value to positive to visualize
+ec <- abs(ec)
+
+#change index to columns to visualize
+ec <- tibble::rownames_to_column(ec, "country")
+
+head(ec)
+```
+
+To make the visualization results easier to interpret, the function pivot_longer() can be implemented to combine the columns income, exports, imports, and gdpp.
+
+```{r}
+economy_piv <- pivot_longer(data = ec, cols = c("income", "exports", "imports", "gdpp"))
+head(economy_piv)
+```
+
+```{r}
+# Graph of the above 21 Counturies
+ggplot(data = economy_piv, aes(x = value, y = reorder(country, value))) +
+  scale_x_continuous(label = scales::comma,
+                     expand = c(0,0),
+                     breaks = seq(0, 2.5, 0.25)) +
+  geom_col(aes(fill = name),position = "dodge") +
+  labs(title = "Country which Most Need Aid In Economic Section",
+       subtitle = "Variables Income, Exports, Imports and GDP",
+       x = "Value",
+       y = "Country",
+       color = "") +
+  theme_bw()  +
+  theme(legend.position = "bottom",
+        legend.title = element_blank())
+```
+
+-Health sector
+
+In the health sector, the columns child_mort, health, and life_expec must have an average value lower than the average profiling value for cluster 3, based on the previous chapter column mean table values.
+
+```{r}
+#country_observation %>%
+#  group_by(cluster) %>% 
+#  summarise_all(mean)
+
+#Parameter filter
+health <- country_observation %>% 
+  filter(child_mort > 1.322,
+         health < -0.139,
+         life_expec < -1.272) %>% 
+  select(child_mort, health, life_expec)
+
+health
+
+```
+Let's create a visualization to compare the child_mort, health, and life_expec columns and determine which countries are in the most urgent need of aid in the health sector among the above 7countries.
+```{r}
+
+#Change negative value into positive, for the sake of visualization
+health <- abs(health)
+
+#Change country section from index into columns, for the sake of visualization
+health <- tibble::rownames_to_column(health, "country")
+
+health
+```
+To make the visualization results easier to interpret, we can use the pivot_longer() function to combine the child_mort, health, and life_expec columns.
+
+```{r}
+health_piv <- pivot_longer(data = health, cols = c("child_mort", "health", "life_expec"))
+head(health_piv)
+```
+
+```{r, fig.height=3, fig.width=6}
+ggplot(data = health_piv, aes(x = value, y = reorder(country, value))) +
+    scale_x_continuous(label = scales::comma, breaks = seq(0, 5, 0.2), expand = c(0,0)) +
+  theme_bw()  +
+  geom_col(aes(fill = name),position = "dodge") +
+  labs(title = "Country requiring Most Aid on Health Section",
+       subtitle = "For variable Child Mortality, Health and Life Expected") 
+```
+
+
+8. Conclusion
+
+To determine the ideal number of K-Values or groups for K-Means clustering, it is necessary to use various methods such as the Elbow Method, Silhouette Method, and Gap Statistic Method. It is important to use multiple methods as the results may vary, and in this case, two out of three methods suggest the ideal K-Value to be 3.
+
+Once the ideal number of clusters is determined, the characteristics of each country in each cluster can be analyzed using Cluster Profiling. Based on the profiling results, countries in Cluster 1 are the most in need of aid when compared to countries in Cluster 2 and Cluster 3
+
+Cluster 1 profiling results reveal that countries in this cluster are in dire need of aid, particularly in the economic and health sectors. Economic growth in these countries, as indicated by the negative results in the exports, imports, and gdpp columns, is poor or even stagnant. In terms of health, the mortality rate among children under 5 years old is alarmingly high, while the life expectancy figures suggest that a significant portion of the population is not expected to live long. These poor health figures may be contributing to the overall dismal economic situation in these countries.
+
+There are two approaches to selecting countries in Cluster 3 for aid assistance:
+
+1) Allocating all funds to countries with an average below the profiling cluster 3.
+Based on the filtering results above, it is evident that there are two countries, Cameroon and Central African Republic, that have an average below the profiling cluster 3.
+
+2) Determine which countries to assist based on Economic & Health Urgency Parameters.
+In order to determine which countries to assist based on economic and health urgency parameters, there are two methods that can be applied. The first method involves allocating all funds to countries that have an average below the profiling cluster 3. However, this method only identifies two countries, Cameroon and Central African Republic, that can be assisted. The second method involves considering countries that have an average below the average profiling cluster 3 for either the economic or health segment, resulting in a total of 21 countries needing economic assistance and 7 countries needing health assistance. Prioritizing which countries to assist can be based on their ranking in each segment. For the economic segment, countries like Eritrea, Central African Republic, and Sudan can be assisted first, while for the health segment, countries like Central African Republic, Chad, and Niger can be prioritized.
+
+In conclusion, the second method is a more effective approach as it enables more countries to receive aid, and aid can be given more accurately based on the specific segment in which a country needs assistance and how urgently they require it. The countries that rank within the top three in each segment can be prioritized to receive aid first.
+
+The RESULT RANKING of country will received the earliest of aid in each sector:
+
+Ranking Economic sector:
+1st=Myanmar, 2nd=Sudan, 3rd=Bangladesh
+Ranking Health sector:
+1st=Chad, 2nd=Central African Republic, 3rd=Niger
+
+9. Limitation and future work
+
+We need more reasonable and sophisticated criteria to filter the country from the table of K-mean clustering I mentioned, to set priority for the people who struggling with their survival daily. In economic sector, I put more weight to the income variable to set ranking from the filterking result of K-mean clustering. Also in Health sector, I put more weight to the child-mortality. Though Cameroon, Central African Republic are picked to be aid-need most countries from all section filtering, specific section filtering resulted in different country ranking as the previous chapter, which is different from these two countries. There are too many column variables, so we should analyze the importance between the variables to set ranking.
+
+I want to simulate many of countries with bootstrap method(to have effect as using big data), and selecting appropriate regression model with tree-based method for using various statistics methods to train data. By these method, I can find more fitted model and groups to select proper countries for aid.
+
+
+
+
+
+
+
+
+
+
