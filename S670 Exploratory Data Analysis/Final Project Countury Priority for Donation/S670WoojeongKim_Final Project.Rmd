@@ -1,9 +1,9 @@
 ---
 title: "Country data for donation priority ranking"
 output:
+  pdf_document: default
   html_document:
     df_print: paged
-  pdf_document: default
 geometry: margin=0.3in
 ---
 
@@ -220,7 +220,7 @@ By using PCA to reduce the dimensionality of the data, we can first identify the
 
 a) Elbow Method
 
-The Elbow Method is a popular approach to determine the optimal K-Value for clustering, which is the number of groups desired as the final result in K-Means. To apply this method, the fviz_nbclust() function is used to visualize the Within Sum of Square (WSS) values. WSS measures the variation that exists within each group, with higher values indicating greater variability in the data set and lower values indicating less variation from the mean value. The optimal K-Value is reached when increasing the number of K does not significantly decrease the total WSS.\
+The Elbow Method is a popular approach to determine the optimal K-Value for clustering, which is the number of groups desired as the final result in K-Means. To apply this method, the fviz_nbclust() function is used to visualize the Within Sum of Square (WSS) values. WSS measures the variation that exists within each group, with higher values indicating greater variability in the data set and lower values indicating less variation from the mean value. The optimal K-Value is reached when increasing the number of K does not significantly decrease the total WSS.
 
 ```{r, fig.height=3, fig.width=4}
 fviz_nbclust(country_2, kmeans, method = "wss") + 
@@ -247,7 +247,7 @@ According to the results obtained from the Gap Statistic approach, the ideal val
 ```{r, fig.height=3, fig.width=4}
 fviz_nbclust(country_2, kmeans, method = "gap_stat") + labs(subtitle = "Gap Statistic method With PCA Value")
 ```
-Out of the three methods described, two indicate that the optimal number of clusters is 3. Therefore, the data will be partitioned into 3 clusters.\
+Out of the three methods described, two indicate that the optimal number of clusters is 3. Therefore, the data will be partitioned into 3 clusters.
 
 Note that:
 the aforementioned testing methods provide a means of determining the number of clusters, other factors such as business requirements or mutual agreement can also be taken into account.
@@ -291,8 +291,8 @@ country_2 |>group_by(cluster) |>
   summarise_all(mean)
 
 ```
-Here's an alternative phrasing for the sentence you provided:\
-\
+Here's an alternative phrasing for the sentence you provided:
+
 It may be preferable to assign the clusters to their original values rather than using PCA for profiling, as this approach may be easier to interpret.
 
 ```{r}
