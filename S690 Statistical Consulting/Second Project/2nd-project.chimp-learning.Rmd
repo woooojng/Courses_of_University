@@ -1,0 +1,323 @@
+---
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+
+##<1>. EDA work and determine what test to apply
+```{r}
+library(gridExtra)
+library(utils)
+#library(DataExplorer)
+library(tidyverse)
+library(ggpubr)
+library(rstatix)
+#library(factoextra)
+library(FactoMineR)
+#library(naniar)
+library(corrplot)
+library(cluster)
+library(arsenal)
+library(tidyverse)
+library(plyr)
+
+```
+
+```{r}
+chimplearn <- read.csv("chimp-learning.csv")
+chimplearn2 <- read.csv("chimp-learning2.csv")
+
+summary(chimplearn)
+head(chimplearn)
+
+```
+
+###Assumption 1 : Difficulty of every words are same for any chimp.
+###Assumption 2 : All the chimps have same ability to learn the words.
+```{r}
+boxplot(Minutes ~ Sign, data = chimplearn )
+boxplot(Range_Minutes ~ Sign, data = chimplearn2 )
+
+```
+From the above boxplot, we can see that words 'look','string' has too big variance. Therefore, we can expect that the difficulty of the word is not same for each chimp since the range of each word is not same. This implies the rejection of 1st aussumption.
+Also, big range of the words 'look' and 'string' also indicates that the ability of chimps are not same.
+
+So, we need to delete some chimps or words to eliminate this kind of words which bother the indication of same difficulty between the words.
+>>>We need to take some statistical test to measure and claim that the difficulty same/vary even after processing data.
+
+```{r, eval=FALSE}
+library("graphics")
+mosaicplot(chimplearn, shade = TRUE, las=30,
+           main = "Minutes")
+mosaicplot(chimplearn2, shade = TRUE, las=30,
+           main = "Range_Minutes")
+library("gnm")
+chimplearn3 <- select(chimplearn2, "Chimp", "Sign", "Range_Minutes") #"Range_Minutes"
+chimplearn3 <- filter(chimplearn3, "Range_Minutes" > 30)
+head(chimplearn3)
+model <- xtabs(Range_Minutes~Sign + Chimp, data = chimplearn2)
+mosaicplot(chimplearn3, gp = shading_max, 
+            split_vertical = TRUE, shade = TRUE,
+            main="Sign")
+```
+
+```{r}
+library('mosaic')
+library('data.table')
+library('vcd') 
+chimplearn3 <- select(chimplearn2, "Chimp", "Sign", "Range_Minutes") #"Range_Minutes"
+chimplearn3 <- filter(chimplearn3, "Range_Minutes" > 30)
+head(chimplearn3)
+# creating dataset with above values 
+data <- table(chimplearn3) 
+summary(data)
+# plotting the mosaic chmodel 
+#setDT(data_frame)
+```
+
+
+```{r, eval=FALSE}
+
+
+
+mosaic(data, shade=TRUE) 
+```
+
+
+
+
+```{r, fig.width=5, fig.height=5}
+model <- xtabs(~Sign + Range_Minutes, data = chimplearn3)
+mosaic(model,  
+            split_vertical = TRUE, shade = TRUE,gp_labels = gpar(fontsize = 5), gp_args = list(interpolate = c(1, 1.8)),
+            main="modelhritis: [Treatment] [Improved]")
+
+#gp = shading_hcl, gp_args = list(interpolate = c(1, 1.8))
+gargs <- list(interpolate=c(-0.5, 0, 0.5, 1, 1.5, 2, 2.5))
+
+mosaic(model, gp = shading_hcl, gp_labels = gpar(fontsize = 5), gp_args=gargs)
+```
+Let us observe what the above mosaic plot reveal. If all the blocks have same area across categories 'Sign' and 'Range_Minutes', it shows the independence between these categories.
+ 
+
+
+
+```{r}
+summary(model)
+```
+**For the above summary of Chi-square test, the p -value is big enough.
+In usual, we say two factors are dependent for p-value<0.01.
+The null hypothesis of independence of Chi-square test is that the two factors are independent, so we cannot reject the hypothesis.
+
+```{r, fig.width=5, fig.height=5}
+model <- xtabs(~Sign + Range_Minutes, data = chimplearn3)
+gargs <- list(interpolate=c(-0.5, 0, 0.5, 1, 1.5, 2, 2.5))
+largs <- list(set_varnames=list(Sign="Sign", 
+                                Range_Minutes="Range_Minutes"),
+              abbreviate=10)
+mosaic(model,  
+            split_vertical = TRUE, shade = TRUE,gp_labels = gpar(fontsize = 5), gp_args=gargs,labeling_args=largs,
+            main="modelhritis: [Treatment] [Improved]")
+
+#gp = shading_hcl, gp_args = list(interpolate = c(1, 1.8))
+
+mosaic(model,  gp = shading_hcl, gp_labels = gpar(fontsize = 5),  
+  gp_args=gargs)
+```
+
+
+
+```{r, fig.width=5, fig.height=5}
+#chimplisten <- select(chimplearn2, "Chimp", "Range_Minutes") #"Range_Minutes"
+
+#data <- table(chimplearn3)
+model2 <- xtabs(~Chimp + Range_Minutes, data = chimplearn3)
+summary(model2)
+mosaic(model2,  
+            split_vertical = TRUE, shade = TRUE,gp_labels = gpar(fontsize = 5), gp_args = list(interpolate = c(1, 1.8)),
+            main="modelhritis: [Treatment] [Improved]")
+
+#gp = shading_hcl, gp_args = list(interpolate = c(1, 1.8))
+
+mosaic(model2, gp = shading_hcl, gp_labels = gpar(fontsize = 5), gp_args=gargs)
+```
+
+```{r}
+chimplisten <- subset(chimplearn2, Sign == "listen")
+chimplisten <- as_tibble(chimplisten)
+head(chimplisten)
+```
+
+
+
+
+
+```{r}
+model3 <- xtabs(~Chimp + Range_Minutes, data = chimplisten)
+summary(model3)
+mosaic(model3,  
+            split_vertical = TRUE, shade = TRUE,gp_labels = gpar(fontsize = 5), gp_args = list(interpolate = c(1, 1.8)),
+            main="modelhritis: [Treatment] [Improved]")
+
+#gp = shading_hcl, gp_args = list(interpolate = c(1, 1.8))
+
+mosaic(model3, gp = shading_hcl, gp_labels = gpar(fontsize = 5), gp_args=gargs)
+```
+```{r}
+chimplook <- subset(chimplearn2, Sign == "look")
+chimplook <- as_tibble(chimplook)
+head(chimplook)
+```
+
+```{r}
+model4 <- xtabs(~Chimp + Range_Minutes, data = chimplook)
+summary(model4)
+mosaic(model4,  
+            split_vertical = TRUE, shade = TRUE,gp_labels = gpar(fontsize = 5), gp_args = list(interpolate = c(1, 1.8)),
+            main="modelhritis: [Treatment] [Improved]")
+
+#gp = shading_hcl, gp_args = list(interpolate = c(1, 1.8))
+
+mosaic(model4, gp = shading_hcl, gp_labels = gpar(fontsize = 5), gp_args=gargs)
+```
+
+```{r}
+## text geom
+ggplot(chimplearn2, aes(x = Sign, y = Range_Minutes, label = rownames(chimplearn2), color=Chimp)) + geom_text(size = 2)
+
+
+ggplot(chimplearn2, aes(x = Sign, y = Range_Minutes, color = Sign)) +
+    geom_violin() + coord_flip() + ggtitle("Given chimplearn data")
+
+```
+```{r, eval=FALSE}
+ggplot(chimplearn2, aes(x = Sign, y = Range_Minutes, color = Sign)) +
+    geom_violin() + coord_flip() + ggtitle("chimplearn")
+```
+
+```{r}
+ggplot(chimplearn2, aes(x = Chimp, y = Range_Minutes)) +
+    geom_point(size = .1) + stat_smooth(method = "lm", se = FALSE) +
+    facet_wrap(~ Sign) +ylab("Square root of price") 
+
+```
+By using Anova having hypothesis statement as no difference between means of two factors, we determine whether we exclude some variables of Chimp and Sign or not.
+
+```{r}
+preaov <- aov(Range_Minutes ~ Chimp + Sign , data = chimplearn2)
+
+
+summary(preaov)
+plot(preaov, 1)
+plot(preaov, 2)
+
+
+```
+
+TukeyHSD operates fitted ANOVA for pairwise variables as below.
+```{r}
+
+TukeyHSD(preaov)
+#t.test(Range_Minutes ~ Chimp|Sign, data = chimplearn2)
+```
+We have null hypothesis as significant difference between two variables. For the above p-values, small p-values imply the statistically meaningful difference between two designated variables for permitting this hypothesis. For the 'Chimp' variable, small p adj means that the Thelma has big different word learning minuites mean value compared with other Chimps. So we can delete the Thelma from the Chimp variables.
+
+For the p-values between the vairables in 'Sign', string has small p adj values with other sign variables. So we can delete 'string' from the 'Sign'variable, since it has significantly different learning minutes mean value, compared with other sign variables.
+
+In the result, we can derive the following model by deleting the above two variable 'Thelma' and 'string'.
+
+##<2>Deleting the Two variables
+```{r}
+chimp_reduced <- subset(chimplearn2, Chimp != "Cindy" | Sign != "string") #, Sign != "string"
+chimp_reduced <- subset(chimp_reduced,  Chimp != "Cindy" |  Sign != "look")
+chimp_reduced <- subset(chimp_reduced,  Chimp != "Thelma" | Sign != "look")
+chimp_reduced <- as_tibble(chimp_reduced)
+summary(chimp_reduced)
+ggplot(chimp_reduced, aes(x = Sign, y = Range_Minutes, color = Sign)) +
+    coord_flip() + ggtitle("After deleting 'Cindy' and 'Look' variable, reduced chimplearn data") + geom_violin() 
+```
+
+```{r}
+
+```
+
+
+##<3>Setting model to identify difficulty of Sign to learn is common for the Chimps.
+```{r}
+aov <- aov(Range_Minutes ~ Chimp + Sign, data = chimp_reduced)
+summary(aov)
+plot(aov, 1)
+plot(aov, 2)
+```
+
+```{r}
+chimp_reduced2 <- subset(chimp_reduced,  Chimp != "Bruno" |  Sign != "food")
+chimp_reduced2 <- subset(chimp_reduced,  Chimp != "Bruno" |  Sign != "more")
+chimp_reduced2 <- as_tibble(chimp_reduced2)
+head(chimp_reduced2)
+ggplot(chimp_reduced2, aes(x = Sign, y = Range_Minutes, color = Sign)) +
+    coord_flip() + ggtitle("After deleting 'More' variable, more reduced chimplearn data") + geom_violin() 
+aov2 <- aov(Range_Minutes ~ Chimp + Sign, data = chimp_reduced2)
+summary(aov2)
+plot(aov2, 1)
+plot(aov2, 2)
+```
+```{r}
+
+```
+
+
+>>>>From above p-values for each factor Chimp and Sign, we know that Minutes to learn each sign is significantly effected by Sign, not by Chimp.
+
+>>>>As a result the above chimplearn boxplot indicates ranking of the difficulty of the sign(word) to learn.
+
+
+
+
+##<4>Test validity for the ANOVA Assumption
+For the ANOVA test, we assume data distribution is normal and the variance for all groups are homogeneous. By using the following plots, we can diagnose these to check.
+
+###1. Check the homogeneity of variance assumption
+
+To check the homogeneity of variances, we use residuals versus fits plot. In this plot, residuals and fitted values are not related. This implies assumption for the homogeneity of variances is strong.
+
+
+```{r}
+#Homogeneity of variances
+plot(aov2, 1)
+```
+###2. Check the normal distribution of our data
+
+```{r}
+#Normal distribution
+plot(aov2, 2)
+```
+
+
+
+The above Normality plot of the residuals indicates the graph of quantiles ofthe residuals versus quantiles of the normal distribution. They have 45-degree reference line and thus this plot verify the assumption that the residuals has normal distribution. As the plot follow more the straight line, the normal probability plot of the residuals show stronger normality.
+
+
+
+```{r}
+aov3 <- aov(log(Minutes) ~ Chimp + Sign, data = chimp_reduced2)
+#Compare the mean of multiple groups using ANOVA test
+aov4 <- chimp_reduced2 %>% anova_test(Minutes ~ Chimp + Sign)
+aov4
+aov5 <- chimp_reduced2 %>% anova_test(log(Minutes) ~ Chimp + Sign)
+aov5
+aov6 <- chimplearn %>% anova_test(Minutes ~ Chimp + Sign)
+aov6
+aov7 <- chimplearn %>% anova_test(log(Minutes) ~ Chimp + Sign)
+aov7
+
+##########As we can see below, after deleting variable, we can see more clear evidence on that the linear model without using log transformation for the reduced data with this deleting variable has smaller p-value for the model.
+```
+
+```{r}
+pairwise<- pairwise_t_test(Minutes ~ Sign, p.adjust.method = "bonferroni", data = chimp_reduced2)
+print(pairwise, n = 100)                # Print 20 rows of tibble
+```
+

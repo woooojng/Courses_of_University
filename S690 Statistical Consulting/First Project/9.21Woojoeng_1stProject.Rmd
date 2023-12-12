@@ -1,0 +1,250 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r}
+library(gridExtra)
+library(utils)
+#library(DataExplorer)
+library(tidyverse)
+library(plyr)
+
+library(factoextra)
+library(FactoMineR)
+#library(naniar)
+library(corrplot)
+library(cluster)
+library(arsenal)
+library(tidyverse)
+```
+
+
+```{r}
+jury <- read.csv("jury.csv")
+head(jury)
+
+```
+
+##1. EDA
+###(1)Histogram and simple graph
+```{r}
+ggplot(jury, aes(Percent)) + geom_histogram()
+hist(jury$Percent, breaks = 30)
+
+```
+```{r}
+ggplot(jury, aes(Percent, Judge)) +
+geom_point() +
+stat_quantile()
+```
+
+
+###(2)Box Plot
+>>>Here, I wondered that the Spock's Judge is different with the other specific group with meaningful statistical indicators.
+
+- Box Plot for Each Groups
+```{r}
+boxplot(Percent ~ Judge, data = jury )
+
+```
+
+
+
+-Box Plot for Spock's vs Non-Spock's
+```{r}
+jury$YN <- ifelse(jury$Judge == "Spock's", "Spock's", "Non-Spock's" )
+
+jury
+```
+```{r}
+boxplot(Percent ~ YN, data = jury )
+
+```
+
+##2.Apply one-way ANOVA test
+
+###(1)Definition of ANOVA test and its assumption
+Stpes for using ANOVA
+STEP1. Compute the common variance(= Statistically, this is variance within samples or residual variance.)
+STEP2. Compute the variance between sampole means by using variance between sample means.
+STEP3. Now, compute F-statistics as the ratio of (variance between sample)/(variance within samples).
+
+
+Assumptions are as follows.
+- The all Percents of each group are observed independently and randomly.
+- The all Percents of each group are normally distrituted.
+- These values of percents have a common variance.
+
+###(2)Computing one-way ANOVA test
+The R function summary.aov() processes the analysis of variance model.
+
+```{r}
+anova_all <- lm(Percent~Judge, jury)
+anova_reduced <- lm(Percent~YN, jury)
+#anova to compare Spock's vs Non-spock's
+one.way <- aov(Percent ~ YN, data = jury)
+summary(one.way)
+one.way2 <- aov(Percent ~ Judge, data = jury)
+summary(one.way2)
+
+anova(anova_reduced, anova_all)
+#t.test(subset(dt, Y/N, percent), percent.others)
+#anova()
+```
+
+
+
+```{r}
+# Computation in the analysis of variance
+res.aov <- aov(Percent ~ Judge, data = jury)
+# Summary for the analysis
+summary(res.aov)
+```
+- Interpret the result of one-way ANOVA tests
+As the p-value is less than the significance level 0.05, we can conclude that there are significant differences between the groups highlighted with “*" in the model summary.
+
+###(3)Pairwise-comparison between the means of groups
+By taking one-way ANOVA test, the p-value differentiates the group means. However, we cannot get specific pairs of groups, which are different.
+
+Therefore, by using the Tukey multiple pairwise-comparison, we can identify the multiple pairwise-comparison by observing p-value adjustment with mean difference between specific pairs of groups with statistically significance.
+
+
+- Tukey multiple pairwise-comparisons
+
+As the above explanation, by using R function TukeyHSD(), we can compute Tukey HSD (Tukey Honest Significant Differences) to get multiple pairwise-comparison between the means of groups. This function TukeyHD() computes the fitted ANOVA as an argument.
+
+
+```{r}
+TukeyHSD(res.aov)
+
+```
+
+-diff: difference between means of the two groups
+-lwr, upr: the lower and the upper end point of the confidence interval at 95% (default)
+-p adj: p-value after adjustment for the multiple comparisons.
+
+
+In the above output, the difference between Spock's and A is the biggest with an adjusted p-value of 0.0001992.
+
+
+###(4)Multiple comparisons using multcomp package
+It’s possible to use the function glht() [in multcomp package] to perform multiple comparison procedures for an ANOVA. glht stands for general linear hypothesis tests. The simplified format is as follow:
+
+glht(model, lincft)
+model: a fitted model, for example an object returned by aov().
+lincft(): a specification of the linear hypotheses to be tested. Multiple comparisons in ANOVA models are specified by objects returned from the function mcp().
+Use glht() to perform multiple pairwise-comparisons for a one-way ANOVA:
+```{r}
+#library(multcomp)
+#glht(model, lincft)
+
+#summary(glht(res.aov, linfct = mcp(group = "Tukey")))
+```
+#####################################################################
+###(4)Pairewise t-test
+With the function pairewise.t.test(), we can also compute pairwise comparisons between groups of Judge with corrections for multiple testing.
+```{r}
+pairwise.t.test(jury$Percent, jury$Judge,
+                 p.adjust.method = "BH")
+```
+
+The above is a table of p-values on each of the pairwise comparisons. With the the Benjamini-Hochberg method, p-values have been adjusted.
+
+###(5)Validity of the test
+
+- Check ANOVA assumptions
+
+From our assumptions before, we will check the normal distribution of the variance of groups and homogeneity of the variance through the groups, via drawing the diagnostic plots.
+
+- Check the homogeneity of variance for assumption
+The residuals versus fits plot can be used to check the homogeneity of variances.
+
+In the plot below, which is the residuals versus fits, there is no dependency between residuals and fitted values (=the mean of each groups). So the reult as the plot is in nice level. From this, it is possible to assume the homogeneity of variances.
+
+
+
+```{r}
+# 1. Homogeneity of variances
+plot(res.aov, 1)
+```
+
+We've found some outlier data points at positions 37, 14, and 10, which can mess up the normality and homogeneity of variances. To use our assumptions for testing, we might want to eliminate these points.
+
+We can also use two tests, Bartlett's or Levene's, to see if the data has consistent variances. We cna use Levene's test because it's not picky about normality of variances. To do this, we'll use a function called "leveneTest()" from the "car" package.
+
+```{r}
+library(car)
+leveneTest(Percent ~ Judge, data = jury)
+```
+From the output above we can see that the p-value is not less than the significance level of 0.05. This means that there is no evidence to suggest that the variance across groups is statistically significantly different. Therefore, we can assume the homogeneity of variances in the different treatment groups.
+
+###(6)Relaxing the homogeneity of variance assumption:
+In our example, the Levene test is not significant; the assumption of equal variances for all groups, required by the classical one-way ANOVA test, turned out to be fine.
+
+How do we save our ANOVA test in a situation where the homogeneity of variance assumption is violated?
+An alternative procedure, the Welch one-way test, that does not require that assumption, has been implemented in the function "oneway.test()".
+
+--ANOVA test with no assumption of equal variances
+```{r}
+oneway.test(Percent ~ Judge, data = jury)
+```
+--Pairwise t-tests with no assumption of equal variances
+```{r}
+pairwise.t.test(jury$Percent, jury$Judge,
+                 p.adjust.method = "BH", pool.sd = FALSE)
+```
+
+
+###(7)Check the normality assumption
+To assess the assumption of normality, we examine a normality plot of residuals. In the plot below, residuals' quantiles are compared to those of the normal distribution, with a 45-degree reference line included. This plot helps verify the assumption that residuals are normally distributed, indicated by an approximately straight line.
+
+```{r}
+# 2. Normality
+plot(res.aov, 2)
+```
+
+We can assume normality as all the points fall approximately along this reference line.
+
+The conclusion above is supported by the Shapiro-Wilk test on the ANOVA residuals (W = 0.96, p = 0.6), which indicate that normality holds.
+
+```{r}
+# Extract the residuals
+aov_residuals <- residuals(object = res.aov )
+# Run Shapiro-Wilk test
+shapiro.test(x = aov_residuals )
+```
+```{r}
+qqnorm(jury$Percent)
+
+```
+```{r}
+head(jury)
+```
+
+
+```{r}
+library(rstatix)
+t.test(jury$Percent ~ jury$YN, var.equal=TRUE)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
