@@ -1,0 +1,512 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+HW6_S632
+
+#####1_ELMR_3.4
+
+4. This problem concerns the modeling of the quantitative structure-activity relationships
+(QSAR) of the inhibition of dihydrofolate reductase (DHFR) by pyrimidines.
+We want to relate the physicochemical and/or structural properties as exhibited
+by the 26 predictors in pyrimidines with an activity level.We have structural
+information on 74 2,4-diamino- 5-(substituted benzyl) pyrimidines used as
+inhibitors of DHFR in E. coli. All the variables lie in [0,1].
+
+```{r}
+#ELMR 3.4
+require(ISLR)
+require(leaps)
+library("faraway")
+data(pyrimidines, package="faraway")
+names(pyrimidines)
+head(pyrimidines)
+```
+
+
+(a) Plot the activity (response) against the first three predictors. Are any outliers in
+the response apparent? Remove any such cases.
+```{r}
+#LM shows oligarch, pollib and parties as being significant. Plot shows a trend and not spread of data.
+lmod<-lm(activity ~., pyrimidines)
+plot(predict(lmod),residuals(lmod),xlab="Fitted",ylab="Residuals")
+summary(lmod)
+```
+```{r}
+#Stripchart shows some outliers on the size variable
+stripchart(pyrimidines)
+```
+
+```{r}
+pyrimidines2 <- subset(pyrimidines, predict(lmod) > 0.2)
+summary(pyrimidines2)
+```
+```{r}
+library(ggplot2)
+x <- pyrimidines$p1.polar #seq_along(ice2$Year)
+y <- pyrimidines$activity #as.numeric(ice2$Month_average_Extent)
+
+m1 <- ggplot(data.frame(x = x, y = y), aes(x = x, y = y)) +
+   geom_line()+
+        geom_smooth()
+m1
+
+x <- pyrimidines$p1.size #seq_along(ice2$Year)
+y <- pyrimidines$activity #as.numeric(ice2$Month_average_Extent)
+
+m2 <- ggplot(data.frame(x = x, y = y), aes(x = x, y = y)) +
+   geom_line()+
+        geom_smooth()
+m2 
+
+x <- pyrimidines$p1.flex #seq_along(ice2$Year)
+y <- pyrimidines$activity #as.numeric(ice2$Month_average_Extent)
+
+m3 <- ggplot(data.frame(x = x, y = y), aes(x = x, y = y)) +
+   geom_line()+
+        geom_smooth()
+m3
+```
+
+(b) Fit a Gaussian linear model for the response with all 26 predictors. How well
+does this model fit the data in terms of R2? Plot the residuals against the fitted
+values. Is there any evidence of a violation of the standard assumptions?
+```{r}
+# Create the model.
+gaussian_ml <- glm(activity ~ ., data = pyrimidines2, family = "gaussian")
+summary(gaussian_ml)
+#we could use the pR2() function from the pscl package to calculate McFadden’s R-square value for the model as well:
+
+#install and load pscl package
+#install.packages('pscl')
+library(pscl)
+
+#calculate McFadden's R-squared for model
+pR2(gaussian_ml)['McFadden']
+
+```
+McFadden’s R-squared value turns out to be -1.316407 . This value is not fairly high, which indicates that our model does not fit the data well and has high predictive power.
+
+  (c) Fit a quasi-binomial model for the activity response. Compare the predicted
+values for this model to those for the Gaussian linear model. Take care to compute
+the predicted values in the appropriate scale. Compare the fitted coefficients
+between the two models. Are there any substantial differences?
+```{r}
+# Create the model.
+biml <- glm(activity ~ ., data = pyrimidines2, family = "quasibinomial")
+
+summary(biml)
+summary(gaussian_ml)
+
+```
+
+For comparing the predicted values from the models, let's consider the observation of the alpha value for each coefficeints. The latter one(gaussian_ml) is more fitted well with comparison with the biml model.
+
+```{r}
+plot(biml)
+# Predicts the values
+predict(biml, newdata = pyrimidines2)
+```
+
+  (d) Fit a Gaussian linear model with the logit transformation applied to the response.
+Compare the coefficients of this model with the quasi-binomial model.
+
+```{r}
+activitylog<- log(pyrimidines2$activity)
+log.lin.mod <- glm(activity ~ ., data=pyrimidines2, 
+              family=gaussian(link="identity"))
+summary(log.lin.mod)
+summary(biml)
+```
+For comparing the predicted values from the models, let's consider the observation of the alpha value(number of stars in the right side of the table) for each coefficeints. The former one(log.lin.mod) is more fitted well with comparison with the biml model.
+
+********(f) What property of the response leads to the similarity of the models considered
+thus far in this question?
+Firstly, the response has range from 0 to 1. So it can be consdiered as the probability as itself. Therefore, we can fit the Quasi-binomial model with raw data values withou resizing. As we saw in the summary functions for the three model, the fitted coefficients are similar since this property, I think.
+
+#####2_ELMR_5.6
+6. Components are attached to an electronic circuit card assembly by a wavesoldering
+process. The soldering process involves baking and preheating the circuit
+card and then passing it through a solder wave by conveyor. Defects arise
+during the process. The design is 27􀀀3 with three replicates. The data is presented
+in the dataset wavesolder. You can assume that the replicates are independent.
+```{r}
+require(ISLR)
+require(leaps)
+library("faraway")
+data(wavesolder, package="faraway")
+names(wavesolder)
+head(wavesolder)
+```
+
+
+(a) Make plots of the number of defects against each of the predictors. Comment
+on the relationships you see. Check graphically that there is no trend in the
+replicates.
+```{r}
+head(wavesolder)
+pairs(wavesolder[,1:10], pch = 19)
+```
+For the relationship with the response values y1, y2 and y3, graphically there is no trend in the replicates with the all predictors.
+
+(b) Compute the mean and variance within each group of three replicates. Plot the
+variance against the mean. Comment on the relationship and the viability of a
+Poisson model for the response. Repeat the plot, but use a log scale on both
+axes. Does this plot reveal anything new?
+```{r}
+library(magrittr) # needs to be run every time you start R and want to use %>%
+library(dplyr)
+#find mean points scored by y
+meanvar <- data.frame(
+   mean = c(mean(wavesolder$y1),mean(wavesolder$y2),mean(wavesolder$y3)), 
+   var = c(var(wavesolder$y1),var(wavesolder$y2),var(wavesolder$y3))
+)
+meanvar
+plot(meanvar)
+
+```
+
+```{r}
+poiss1 <- glm(y1 ~ prebake+flux+speed+preheat+cooling+agitator+temp, family=poisson, wavesolder)
+poiss2 <- glm(y2 ~ prebake+flux+speed+preheat+cooling+agitator+temp, family=poisson, wavesolder)
+poiss3 <- glm(y3 ~ prebake+flux+speed+preheat+cooling+agitator+temp, family=poisson, wavesolder)
+#wavesolder2<-wavesolder %>% group_by(y1, y2, y3) %>% summarise_at(mean(y1), vars(y1), list(y1mean = mean, y1var = var))
+#wavesolder2
+summary(poiss1)
+summary(poiss2)
+summary(poiss3)
+glmlog1 <- log(predict(poiss1))
+glmlog2 <- log(predict(poiss2))
+glmlog3 <- log(predict(poiss3))
+
+#+Poisson->plot->log scale
+poissmeanvar1 <- data.frame(
+   mean = c(mean(predict(poiss1)),mean(predict(poiss2)),mean(predict(poiss3))), 
+   var = c(var(predict(poiss1)),var(predict(poiss2)),var(predict(poiss3)))
+)
+plot(poissmeanvar1)
+poissmeanvar2 <- data.frame(
+   mean = c(mean(glmlog1),mean(glmlog2),mean(glmlog3)), 
+   var = c(var(glmlog1),var(glmlog2),var(glmlog3))
+)
+plot(poissmeanvar2)
+```
+For the summary of the Poisson model, the coefficients are nonzero, with the small alpha value and p-value less than .05 for most coefficients of the predictor variables.
+For the log-scale of the poisson model, it has slope close to 1 when we compare with the other two plots previously drawn. This means that the resizing the mean and var of the predicted values of the models to deal the data set.
+(c) Fit a Poisson model for the number of defects with all predictors included as
+main effects. What does the deviance of this model say about its fit?
+Deviance Residuals: 
+    Min       1Q   Median       3Q      Max  
+-1.9176  -0.5044  -0.2250   0.1280   3.8988 
+////
+Deviance Residuals: 
+    Min       1Q   Median       3Q      Max  
+-7.5224  -2.0040   0.1881   2.4364   4.7959
+////
+Deviance Residuals: 
+    Min       1Q   Median       3Q      Max  
+-2.6807  -0.9976  -0.2688   0.7405   5.1161  
+
+The above Deviance Residuals are the results from the previous problem.
+The smallest Deviance residuals are in the first poisson model "poiss1", so this is the best model among the three models.
+
+(d) Make a plot of the residuals against the fitted values and comment on what is
+seen. Make a QQ plot of the residuals. Are there any outliers?
+```{r}
+plot(poiss1)
+plot(poiss2)
+plot(poiss3)
+```
+Without the ouliers in the three residul vs. fitted graphs, small residuals with good fit models are 2<3<1 in order with the three poisson models.
+For the QQ-plot without oulier(presenrted with numbers in the graphs), the good normal distribution fit is shown 2<3<1 in order with the three poisson models.
+
+(e) Refit the Poisson model but excluding the case with the largest residual. Compute
+the deviance. Does this model now fit the data?
+```{r}
+#Exclude the oulier for the Residual in the above Residual vs. predicted plots frome the dataframe.
+wavesolder2 <- subset(wavesolder, predict(poiss1) > 1.5 & predict(poiss2) > 1.5 & predict(poiss3) > 1.5 )
+#Refit for the poisson models in the same way with previous question.
+poiss11 <- glm(y1 ~ prebake+flux+speed+preheat+cooling+agitator+temp, family=poisson, wavesolder2)
+poiss22 <- glm(y2 ~ prebake+flux+speed+preheat+cooling+agitator+temp, family=poisson, wavesolder2)
+poiss33 <- glm(y3 ~ prebake+flux+speed+preheat+cooling+agitator+temp, family=poisson, wavesolder2)
+#wavesolder2<-wavesolder %>% group_by(y1, y2, y3) %>% summarise_at(mean(y1), vars(y1), list(y1mean = mean, y1var = var))
+#wavesolder2
+summary(poiss11)
+summary(poiss22)
+summary(poiss33)
+```
+
+Deviance Residuals: 
+    Min       1Q   Median       3Q      Max  
+-1.9176  -0.5044  -0.2250   0.1280   3.8988 
+////
+Deviance Residuals: 
+    Min       1Q   Median       3Q      Max  
+-7.5224  -2.0040   0.1881   2.4364   4.7959
+////
+Deviance Residuals: 
+    Min       1Q   Median       3Q      Max  
+-2.6807  -0.9976  -0.2688   0.7405   5.1161  
+
+The above Deviance Residuals are the results from the previous problem (c).
+The smallest Deviance residuals are in the first poisson model "poiss1", so this is the best model among the three models.
+
+
+Deviance Residuals: 
+     Min        1Q    Median        3Q       Max  
+-1.49790  -0.14440  -0.00096   0.27023   1.08033
+////
+Deviance Residuals: 
+    Min       1Q   Median       3Q      Max  
+-6.9083  -1.7505  -0.4141   2.2623   3.8954
+////
+Deviance Residuals: 
+     Min        1Q    Median        3Q       Max  
+-2.24819  -0.53779   0.06388   0.79035   2.51467
+
+The above Deviance Residuals are the results from the summary in the problem.
+The smallest Deviance residuals are still in the first poisson model "poiss1", so this is the best model among the three models. For the summaries in this problem, the absolute value deviance is smaller in 1st one, compared with the others. So this is the best model.
+
+
+(f) Fit a quasi-poisson model with same model formula and excluded case. Estimate
+the value of the dispersion parameter. Check the model summary. Now
+use an F-test to the significance of each of the predictors. Compare the two sets
+of tests—one from the model summary and one from the F-test. Are they similar?
+Report on what predictors are significant and which level of the significant
+factors will lead to higher defects.
+```{r}
+#Fit model with quasilikelihood
+
+#Now fit the model using quasi-likelihood instead of likelihood:
+
+qp1 <- glm(y1 ~ prebake+flux+speed+preheat+cooling+agitator+temp, quasipoisson, wavesolder)
+qp2 <- glm(y2 ~ prebake+flux+speed+preheat+cooling+agitator+temp, quasipoisson, wavesolder)
+qp3 <- glm(y3 ~ prebake+flux+speed+preheat+cooling+agitator+temp, quasipoisson, wavesolder)
+summary(qp1)
+summary(qp2)
+summary(qp3)
+anova(qp1,test="F") 
+anova(qp2,test="F") 
+anova(qp3,test="F") 
+```
+The followings are Dispersion parameters from the above summaries.
+(Dispersion parameter for quasipoisson family taken to be 4.047015)
+(Dispersion parameter for quasipoisson family taken to be 20.41289)
+(Dispersion parameter for quasipoisson family taken to be 9.826197)
+For the dispersion parameter, they are somewhat big. And so the fitting of the models are not that good.
+
+```{r}
+#Using the technique of drop in deviance analysis you compare the models that are nested (!!) and decide which model specification is the preferred one. To do this, one can run multiple anova instructions such as
+
+anova(qp1, qp2, test = "F")
+anova(qp1, qp3, test = "F")
+anova(qp2, qp3, test = "F")
+```
+
+
+For the question in the following (),
+(Compare the two sets
+of tests—one from the model summary and one from the F-test. Are they similar?
+Report on what predictors are significant and which level of the significant
+factors will lead to higher defects.) the answer is as follows.
+The p-value of F-test(the rightmost column of the summary tables above) are greater or less than the significance level 0.05. For the greater one for each coefficients of the predictors, there is no significant difference between the two variances.
+For F-test to the significance of each of the predictors, the 1st model has the most p-value which is less than 0.05. So this model has significant coefficients most, among the three models.
+
+(g) Check the diagnostics again as in (d).
+```{r}
+plot(qp1)
+plot(qp2)
+plot(qp3)
+```
+Without the ouliers in the three residul vs. fitted graphs, small residuals with good fit models are 2<3<1 in order with the three quasi-poisson models.
+For the QQ-plot without oulier(presenrted with numbers in the graphs), the good normal distribution fit is shown 2<3<1 in order with the three qusi-poisson models.
+
+
+#####3_ELMR_6.2
+2. The dataset melanoma gives data on a sample of patients suffering from melanoma
+(skin cancer) cross-classified by the type of cancer and the location on the body.
+```{r}
+data(melanoma, package="faraway")
+names(melanoma)
+head(melanoma)
+```
+
+(a) Display the data in a two-way table. Make a mosaic plot and comment on the
+evidence for independence.
+```{r}
+packages = c('vcd', 'vcdExtra', 'tidyverse')
+
+for(p in packages){
+  if(!require(p, character.only = T)){
+    install.packages(p)
+  }
+  library(p, character.only = T)
+}
+mosaic(~tumor + site , data = melanoma)
+
+```
+```{r}
+library("graphics")
+mosaicplot(melanoma, shade = TRUE, las=2,
+           main = "count")
+```
+
+The coverage of count is big or small regardless of the tumor or site variable, so they are independent.
+(b) Check for independence between site and tumor type using a Chi-squared test.
+```{r}
+melanoma3 <- matrix(c(22, 16, 19, 11, 2, 54, 33, 17, 10, 115, 73, 28), nrow = 3, ncol = 4, byrow = T)
+rownames(melanoma3) <- c('head', 'trunk','extremity')
+colnames(melanoma3) <- c('freckle', 'superficial', 'nodular', 'indeterminate')
+melanoma3
+# Load the library.
+library("MASS")
+chisq <- chisq.test(melanoma3)
+
+chisq
+```
+
+Chi-square test examines whether rows and columns of a contingency table are statistically significantly associated.
+
+*Null hypothesis (H0): the row and the column variables of the contingency table are independent.
+*Alternative hypothesis (H1): row and column variables are dependent.
+*If the calculated Chi-square statistic is greater than the critical value([number of rows -1]*[number of columns]), then we must conclude that the row and the column variables are not independent of each other. This implies that they are significantly associated.
+->In our example, the row and the column variables are dependent since 65.813>6=critical value (p-value is close to 0<0.05).
+
+(c) Fit a Poisson GLM model and use it to check for independence.
+```{r}
+poisson <- glm(count ~ tumor + site ,data = melanoma, family = "poisson")
+summary(poisson)
+```
+Fropm the poisson model above and it summary, we know that the p-values are so small and thus they are all less than 0.05 with small alpha values each. So they have trend to predict the response in this model. Therefore, we can result in that the predictors have dependent trend for each other to predict response.
+
+(d) Make a two-way table of the deviance residuals from the last model. Comment
+on the larger residuals.
+```{r}
+mosaic(poisson , data = melanoma)
+
+```
+For the big area in the above graph, that is the head and freckle category. It has the Pearson residuals from 4 to 6.7,
+
+(e) Construct the correspondence plot. Interpret the plot.
+```{r}
+library("corrplot")
+corrplot(melanoma3, is.corr=FALSE)
+
+```
+extremity superficial tumor has the highestcorrelation categry realation.Correlations are positive for all the subcategories, this means that all the categries in site has positive realtion with the categories of kind of tumors.
+
+(f) Omit all the head location data and repeat the test for independence. What does
+this indicate?
+```{r}
+melanoma4 <- matrix(c(34, 185, 125, 56), nrow = 1, ncol = 4, byrow = T)
+ colnames(melanoma3) <- c('freckle', 'superficial', 'nodular', 'indeterminate')
+ melanoma4
+
+chisq <- chisq.test(melanoma4)
+
+chisq
+```
+X-squared value is still greater than 3, so the predictors are dependent.
+
+
+#####4_ELMR_6.8
+8. The dataset HairEyeColor contains the same data analyzed in this chapter as
+haireye. Repeat the analysis in the text for each sex and make a comparison of
+the conclusions.
+
+```{r}
+data(HairEyeColor, package="faraway")
+HairEyeColor
+```
+
+```{r}
+# Create the data frame.
+HECFemale <- data.frame(
+   hair =c("Black","Brown","Red","Blond"), 
+   Brown = c(32,53,10,3),
+   Blue = c(11,50,10,30),
+   Hazel = c(10,25,7,5),
+   Green = c(3,15,7,8)
+)
+
+HECFemale1 <- HECFemale[,c(1,2)]
+HECFemale1$eye <-"Brown"
+colnames(HECFemale1) <- c('hair','y','eye')
+HECFemale2 <- HECFemale[,c(1,3)]
+HECFemale2$eye <-"Blue"
+colnames(HECFemale2) <- c('hair','y','eye')
+HECFemale3 <- HECFemale[,c(1,4)]
+HECFemale3$eye <-"Brown"
+colnames(HECFemale3) <- c('hair','y','eye')
+HECFemale4 <- HECFemale[,c(1,5)]
+HECFemale4$eye <-"Brown"
+colnames(HECFemale4) <- c('hair','y','eye')
+finalHECFemale <- rbind(HECFemale1, HECFemale2, HECFemale3, HECFemale4)
+
+HECMale <- data.frame(
+   hair =c("Black","Brown","Red","Blond"), 
+   Brown = c(36,66,16,4),
+   Blue = c(9,34,7,64),
+   Hazel = c(5,29,7,5),
+   Green = c(2,14,7,8)
+)
+HECMale1 <- HECMale[,c(1,2)]
+HECMale1$eye <-"Brown"
+colnames(HECMale1) <- c('hair','y','eye')
+HECMale2 <- HECMale[,c(1,3)]
+HECMale2$eye <-"Blue"
+colnames(HECMale2) <- c('hair','y','eye')
+HECMale3 <- HECMale[,c(1,4)]
+HECMale3$eye <-"Brown"
+colnames(HECMale3) <- c('hair','y','eye')
+HECMale4 <- HECMale[,c(1,5)]
+HECMale4$eye <-"Brown"
+colnames(HECMale4) <- c('hair','y','eye')
+finalHECMale <- rbind(HECMale1, HECMale2, HECMale3, HECMale4)
+
+
+```
+```{r}
+(ct1 <- xtabs(y ~ hair + eye, finalHECFemale))
+(ct2 <- xtabs(y ~ hair + eye, finalHECMale))
+summary(ct1)
+summary(ct2)
+dotchart(ct1)
+dotchart(ct2)
+mosaicplot(ct1, color=TRUE, main=NULL, las=1)
+mosaicplot(ct2, color=TRUE, main=NULL, las=1)
+```
+From above graphs, the coverage of Blone is high in the Male data.
+```{r}
+modc1 <- glm(y ~ hair+eye, family="poisson", finalHECFemale)
+modc2 <- glm(y ~ hair+eye, family="poisson", finalHECMale)
+sumary(modc1)
+sumary(modc2)
+
+z1 <- xtabs(residuals(modc1,type="pearson")~hair+eye,finalHECFemale)
+z2 <- xtabs(residuals(modc2,type="pearson")~hair+eye,finalHECMale)
+svdz1 <- svd(z1,2,2)
+svdz2 <- svd(z2,2,2)
+leftsv1 <- svdz1$u %*% diag(sqrt(svdz1$d[1:2]))
+leftsv2 <- svdz2$u %*% diag(sqrt(svdz2$d[1:2]))
+rightsv1 <- svdz1$v %*% diag(sqrt(svdz1$d[1:2]))
+rightsv2 <- svdz2$v %*% diag(sqrt(svdz2$d[1:2]))
+ll1 <- 1.1*max(abs(rightsv1),abs(leftsv1))
+ll2 <- 1.1*max(abs(rightsv2),abs(leftsv2))
+
+plot(rbind(leftsv1,rightsv1),asp=1,xlim=c(-ll1,ll1),ylim=c(-ll1,ll1), xlab="
+,! SV1",ylab="SV2",type="n")
+abline(h=0,v=0)
+text(leftsv1,dimnames(z1)[[1]])
+text(rightsv1,dimnames(z1)[[2]])
+
+plot(rbind(leftsv2,rightsv2),asp=1,xlim=c(-ll2,ll2),ylim=c(-ll2,ll2), xlab="
+,! SV1",ylab="SV2",type="n")
+abline(h=0,v=0)
+text(leftsv2,dimnames(z2)[[1]])
+text(rightsv2,dimnames(z2)[[2]])
+```
+From the summary functions, the coefficients for Blond is different and the other coefficients are similar for the models. Blond coeffivients for the Male data is positive, but that is negative in the Female data.
+For the SV graphs, the  heights are same for the points. Also, the Brown colored hair is always close to the origins. This means that an eye color distribution that is close to the overall average.
+

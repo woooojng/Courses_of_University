@@ -1,0 +1,297 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+####ISI 5.4 Q2
+2. We will now derive the probability that a given observation is part
+of a bootstrap sample. Suppose that we obtain a bootstrap sample
+from a set of n observations.
+(a) What is the probability that the first bootstrap observation is
+not the jth observation from the original sample? Justify your
+answer.
+1−1/n. So the first bootstrap observation is not the jth observation from the original sample.
+(b) What is the probability that the second bootstrap observation
+is not the jth observation from the original sample?
+1−1/n. 
+  (c) Argue that the probability that the jth observation is not in the
+bootstrap sample is (1 − 1=n)n.
+As bootstrapping sample with replacement, we have that the probability that the jth observation is not in the bootstrap sample is the product of the probabilities that each bootstrap observation is not the jth observation from the original sample
+(1−1/n)⋯(1−1/n)=(1−1/n)n as these probabilities are independant.
+(d) When n = 5, what is the probability that the jth observation is
+in the bootstrap sample?
+  We have
+P(jth obs in bootstrap sample)=1−(1−1/5)5=0.672.
+
+
+  (e) When n = 100, what is the probability that the jth observation
+is in the bootstrap sample?
+  P(jth obs in bootstrap sample)=1−(1−1/100)100=0.634.
+
+  (f) When n = 10; 000, what is the probability that the jth observation
+is in the bootstrap sample?
+  P(jth obs in bootstrap sample)=1−(1−1/10000)10000=0.632.
+  (g) Create a plot that displays, for each integer value of n from 1
+to 100; 000, the probability that the jth observation is in the
+bootstrap sample. Comment on what you observe.
+```{r}
+x <- 1:200000
+plot(x, 1 - (1 - 1/x)^x)
+```
+We can see that the plot quickly reaches an asymptote at about 0.632.
+(h) We will now investigate numerically the probability that a bootstrap
+sample of size n = 100 contains the jth observation. Here
+j = 4. We repeatedly create bootstrap samples, and each time
+we record whether or not the fourth observation is contained in
+the bootstrap sample.
+
+Comment on the results obtained.
+```{r}
+store <- rep(NA, 10000)
+for (i in 1:10000) {
+    store[i] <- sum(sample(1:100, rep = TRUE) == 4) > 0
+}
+mean(store)
+```
+A known fact from calculus tells us that
+limn→∞(1+x/n)n=ex.
+If we apply this fact to our case, we get that the probability that a bootstrap sample of size n contains the jth observation converges to 1−1/e=0.632 as n→∞.
+
+
+
+
+####ISI 5.4 Q6
+6. We continue to consider the use of a logistic regression model to
+predict the probability of default using income and balance on the
+Default data set. In particular, we will now compute estimates for
+the standard errors of the income and balance logistic regression coe
+cients in two different ways: (1) using the bootstrap, and (2) using
+the standard formula for computing the standard errors in the glm()
+function. Do not forget to set a random seed before beginning your
+analysis.
+(a) Using the summary() and glm() functions, determine the estimated
+standard errors for the coefficients associated with income
+and balance in a multiple logistic regression model that uses
+both predictors.
+```{r}
+library(ISLR)
+
+set.seed(1)
+attach(Default)
+```
+```{r}
+fit.glm <- glm(default ~ income + balance, data = Default, family = "binomial")
+summary(fit.glm)
+```
+The glm() estimates of the standard errors for the coefficients beta0, beta1 and beta2 are respectively 0.4347564, 4.985167210^{-6} and 2.273731410^{-4}.
+
+(b) Write a function, boot.fn(), that takes as input the Default data
+set as well as an index of the observations, and that outputs
+the coefficient estimates for income and balance in the multiple
+logistic regression model.
+```{r}
+boot.fn <- function(data, index) {
+    fit <- glm(default ~ income + balance, data = data, family = "binomial", subset = index)
+    return (coef(fit))
+}
+```
+
+(c) Use the boot() function together with your boot.fn() function to
+estimate the standard errors of the logistic regression coefficients
+for income and balance.
+```{r}
+library(boot)
+boot(Default, boot.fn, 1000)
+```
+The bootstrap estimates of the standard errors for the coefficients beta0, beta1 and beta2 are respectively 0.4239, 4.583 x 10^(-6) and 2.268 x 10^(-4).
+
+(d) Comment on the estimated standard errors obtained using the
+glm() function and using your bootstrap function.
+The estimated standard errors obtained by the two methods are pretty close.
+
+
+####ISI 5.4 Q8
+8. We will now perform cross-validation on a simulated data set.
+(a) Generate a simulated data set as follows:
+
+```{r}
+set.seed(1)
+y <- rnorm(100)
+x <- rnorm(100)
+y <- x - 2 * x^2 + rnorm(100)
+
+```
+Here we have that n=100 and p=2, the model used is
+Y=X−2X^2+epsilon.
+
+(b)
+```{r}
+plot(x, y)
+```
+
+(c)
+i.
+```{r}
+
+library(boot)
+set.seed(1)
+Data <- data.frame(x, y)
+fit.glm.1 <- glm(y ~ x)
+cv.glm(Data, fit.glm.1)$delta[1]
+```
+ii.
+```{r}
+fit.glm.2 <- glm(y ~ poly(x, 2))
+cv.glm(Data, fit.glm.2)$delta[1]
+```
+
+iii.
+```{r}
+fit.glm.3 <- glm(y ~ poly(x, 3))
+cv.glm(Data, fit.glm.3)$delta[1]
+```
+
+iv. 
+```{r}
+fit.glm.4 <- glm(y ~ poly(x, 4))
+cv.glm(Data, fit.glm.4)$delta[1]
+```
+
+(d) Repeat (c) using another random seed, and report your results.
+Are your results the same as what you got in (c)? Why?
+```{r}
+set.seed(10)
+fit.glm.1 <- glm(y ~ x)
+cv.glm(Data, fit.glm.1)$delta[1]
+```
+```{r}
+fit.glm.2 <- glm(y ~ poly(x, 2))
+cv.glm(Data, fit.glm.2)$delta[1]
+
+```
+```{r}
+fit.glm.3 <- glm(y ~ poly(x, 3))
+cv.glm(Data, fit.glm.3)$delta[1]
+```
+```{r}
+fit.glm.4 <- glm(y ~ poly(x, 4))
+cv.glm(Data, fit.glm.4)$delta[1]
+```
+The results above are identical to the results obtained in (c) since LOOCV evaluates n folds of a single observation.
+
+  (e) Which of the models in (c) had the smallest LOOCV error? Is
+this what you expected? Explain your answer.
+We may see that the LOOCV estimate for the test MSE is minimum for “fit.glm.2”, this is not surprising since we saw clearly in (b) that the relation between “x” and “y” is quadratic.
+
+
+(f) 
+```{r}
+summary(fit.glm.4)
+```
+The p-values show that the linear and quadratic terms are statistically significants and that the cubic and 4th degree terms are not statistically significants. This agree strongly with our cross-validation results which were minimum for the quadratic model.
+
+####ISI 6.6 Q3
+
+(a) 
+Steadily decrease. As we increase s from 0, we are restricting the betaj coefficients less and less (the coefficients will increase to their least squares estimates), and so the model is becoming more and more flexible which provokes a steady decrease in the training RSS.
+
+(b) Repeat (a) for test RSS.
+Decrease initially, and then eventually start increasing in a U shape. As we increase s from 0, we are restricting the betaj coefficients less and less (the coefficients will increase to their least squares estimates), and so the model is becoming more and more flexible which provokes at first a decrease in the test RSS before increasing again after that in a typical U shape.
+
+
+
+(c) Repeat (a) for variance.
+
+Steadily increase. As we increase s from 0, we are restricting the betaj coefficients less and less (the coefficients will increase to their least squares estimates), and so the model is becoming more and more flexible which provokes a steady increase in variance.
+
+
+
+(d) Repeat (a) for (squared) bias.
+Steadily decrease. As we increase s from 0, we are restricting the betaj coefficients less and less (the coefficients will increase to their least squares estimates), and so the model is becoming more and more flexible which provokes a steady decrease in bias.
+
+
+(e) Repeat (a) for the irreducible error.
+Remain constant. By definition, the irreducible error is independant of the model, and consequently independant of the value of s.
+
+
+####ISI 6.6 Q9 a-d, g
+In this exercise, we will predict the number of applications received using the other variables in the “College” data set.
+
+(a) Split the data set into a training and a test set.
+```{r}
+library(ISLR)
+library(glmnet)
+library(tidyr)
+data(College)
+set.seed(11)
+train = sample(1:dim(College)[1], dim(College)[1] / 2)
+test <- -train
+College.train <- College[train, ]
+College.test <- College[test, ]
+```
+
+(b)
+```{r}
+fit.lm <- lm(Apps ~ ., data = College.train)
+pred.lm <- predict(fit.lm, College.test)
+mean((pred.lm - College.test$Apps)^2)
+```
+
+(c)
+```{r}
+train.mat <- model.matrix(Apps ~ ., data = College.train)
+test.mat <- model.matrix(Apps ~ ., data = College.test)
+grid <- 10 ^ seq(4, -2, length = 100)
+fit.ridge <- glmnet(train.mat, College.train$Apps, alpha = 0, lambda = grid, thresh = 1e-12)
+cv.ridge <- cv.glmnet(train.mat, College.train$Apps, alpha = 0, lambda = grid, thresh = 1e-12)
+bestlam.ridge <- cv.ridge$lambda.min
+bestlam.ridge
+
+pred.ridge <- predict(fit.ridge, s = bestlam.ridge, newx = test.mat)
+mean((pred.ridge - College.test$Apps)^2)
+```
+The test MSE is higher for ridge regression than for least squares.
+
+(d)
+```{r}
+fit.lasso <- glmnet(train.mat, College.train$Apps, alpha = 1, lambda = grid, thresh = 1e-12)
+cv.lasso <- cv.glmnet(train.mat, College.train$Apps, alpha = 1, lambda = grid, thresh = 1e-12)
+bestlam.lasso <- cv.lasso$lambda.min
+bestlam.lasso
+
+pred.lasso <- predict(fit.lasso, s = bestlam.lasso, newx = test.mat)
+mean((pred.lasso - College.test$Apps)^2)
+```
+The test MSE is also higher for ridge regression than for least squares.
+```{r}
+predict(fit.lasso, s = bestlam.lasso, type = "coefficients")
+
+```
+(g)
+```{r}
+#To compare the results obtained above, we have to compute the test R2 for all models.
+library(pls)
+fit.pls <- plsr(Apps ~ ., data = College.train, scale = TRUE, validation = "CV")
+pred.pls <- predict(fit.pls, College.test, ncomp = 10)
+
+fit.pcr <- pcr(Apps ~ ., data = College.train, scale = TRUE, validation = "CV")
+pred.pcr <- predict(fit.pcr, College.test, ncomp = 10)
+test.avg <- mean(College.test$Apps)
+lm.r2 <- 1 - mean((pred.lm - College.test$Apps)^2) / mean((test.avg - College.test$Apps)^2)
+lm.r2
+ridge.r2 <- 1 - mean((pred.ridge - College.test$Apps)^2) / mean((test.avg - College.test$Apps)^2)
+ridge.r2
+lasso.r2 <- 1 - mean((pred.lasso - College.test$Apps)^2) / mean((test.avg - College.test$Apps)^2)
+lasso.r2
+pcr.r2 <- 1 - mean((pred.pcr - College.test$Apps)^2) / mean((test.avg - College.test$Apps)^2)
+pcr.r2
+pls.r2 <- 1 - mean((pred.pls - College.test$Apps)^2) / mean((test.avg - College.test$Apps)^2)
+pls.r2
+```
+
+So the test R2 for least squares is 0.9104228, the test R2 for ridge is 0.9104252, the test R2 for lasso is 0.910428, the test R2 for pcr is 0.8369703 and the test R2 for pls is 0.9099696 All models, except PCR, predict college applications with high accuracy.
+
+
+
+
+

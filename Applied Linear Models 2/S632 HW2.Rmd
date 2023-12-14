@@ -1,0 +1,189 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+S632 HW2
+
+The National Institute of Diabetes and Digestive and Kidney Diseases conducted a study on 768 adult female
+Pima Indians living near Phoenix. The purpose of the study was to investigate factors related to diabetes.
+The data may be found in the the dataset pima. The data require some adjustments before it can be used.
+We do the following:
+  • Create a factor version of the test results. One way to do this is by assigning as.factor(pima$test)
+to a new variable inside pima and then use this variable as it was done in the lectures)
+• The zero values for pregnant represent no pregnancies and they are plausible values. For all other
+predictors, the zero values represent missing values and should be replaced with the missing value code
+NA.
+Here is the code:
+
+```{r}
+
+library(magrittr)
+library(dplyr)
+library(faraway)
+library(ggplot2)
+data(pima)
+head(pima)
+help(pima)
+dim(pima)
+pima <- na.omit(pima)
+pima <- pima %>% mutate(test.f = factor(ifelse(test,"positive","negative")))
+pima$glucose[pima$glucose == 0] <- NA
+pima$diastolic[pima$diastolic == 0] <- NA
+pima$triceps[pima$triceps == 0] <- NA
+pima$bmi[pima$bmi == 0] <- NA
+pima$insulin[pima$insulin == 0] <- NA
+```
+a. Using the factor version of the test we present an interleaved histogram to show how the distribution
+of insulin differs between those testing positive (1) and negative (0).
+```{r}
+ggplot(pima, aes(x=insulin, fill=test.f)) +
+geom_histogram(position="dodge", aes(y=..density..))
+```
+What conclusions do you get from this plot?
+ In the graph, insulin value increase as the number of positivity test result decreases.
+
+
+b. Fit two models, for both diabetes test (as factor) is the response. In the first model include all
+the other variables as predictors; in the second do not include predictors diastolic, insulin, and
+triceps. Perform a test to determine if it’s best to determine whether to use the full or the reduced
+model? Explain. (Note: you may want to omit rows that are not used in the full model for a fair
+comparison.)
+
+```{r}
+ml1 <- glm(test ~ pregnant + glucose + diastolic + triceps + insulin + bmi + diabetes + age,family = binomial, pima)
+summary(ml1)
+ml2 <- glm(test ~ pregnant + glucose + bmi + diabetes + age,family = binomial, pima)
+summary(ml2)
+```
+The two models above cannot be compared, since ml1 has 383 degrees of freedom and ml2 has 746 degrees of freedom.
+
+Therefore, we can make comparision by removingthe NA data as follows.
+```{r}
+pima2 <- na.omit(pima)
+mlna1 <- glm(test ~ pregnant+glucose+diastolic+triceps+insulin+bmi+diabetes+age, family = binomial, pima2) 
+mlna2 <- glm(test ~ pregnant+glucose+bmi+diabetes+age,family = binomial, pima2)
+#anova(mlna2, mlna1, test="Chi")
+summary(mlna1)
+summary(mlna2)
+```
+As we can see avbove, the reduced model is more meaningful in observation in coefficients of the variables.(The Significance levels in reduced model coefficients are more smaller than those in full model version.)
+
+c. Work with a model with test (as factor) as the response and all the other variables as predictors. Use
+the bi-directional stepwise method (i.e. forward and backward simultaneously) with AIC to select a
+model and call it M1. Work with a data set without missing values. How many cases are used in your
+selected model? Which predictors are selected? How different is this model to the on chosen in the
+previous question?
+
+```{r}
+M1 <- step(mlna1, trace=0)
+summary(M1)
+```
+In the above summary, there are 386 degrees of freedom, so thus we can know the number of cases in this model.
+For selecting predictor, we can decide to choose diabetes since the absolute value of this coefficient is the biggest one in the summary.
+This value 1.150913 is same with the coefficient 1.150913 from the coefficient of diabetes coefficient in mlna2.
+
+
+d. Interpret at least two coefficients in M1 in terms of the log-odds and odds.
+```{r}
+#For pima$glucose,
+#Log-odds
+0.036458
+
+#Estimate log-odds ratio
+odds = exp(0.036458)
+odds
+
+```
+
+```{r}
+#For pima$bmi,
+#Log-odds
+0.078139
+
+#Estimate log-odds ratio
+odds2 = exp(0.078139)
+odds2
+
+```
+
+e. Using M1, obtain an appropriate residuals plot and the Hosmer-Lemeshow test to determine whether
+the model is a good fit for the data. What is your conclusion?
+
+```{r}
+plot(M1)
+
+```
+```{r}
+install.packages('glmtoolbox', dependencies = TRUE, repos='http://cran.rstudio.com/')
+library(glmtoolbox)
+hltest(M1, verbose = TRUE)
+```
+Since the p-value is less than 0.05, we reject the null hypothesis(The data arised from specified model) of a perfect fit. So we conclude the fit is adequate.
+
+
+Problem 2
+A study was conducted to determine the effectiveness of a new teaching method in economics. The data may
+be found in the dataset spector. Use help(spector) to read a description of the data. Before answering
+the questions, make sure that those variables that are factors are treated as such in R.
+```{r}
+df <-data(spector)
+head(df)
+help(spector)
+```
+
+a. Obtain some appropriate plot(s) to explore whether the new method works.
+```{r}
+library(foreign)
+Sp = read.dta("http://www3.nd.edu/~rwilliam/statafiles/logist.dta")
+
+summary(Sp)
+```
+```{r}
+library(ggplot2)
+lm = lm(grade ~ gpa + tuce + psi, data = Sp) 
+summary(lm)
+ggplot(Sp, aes(gpa, grade)) + geom_point() + geom_smooth(method="lm")
+```
+When gpa increase, from the above regression line, grade increase.
+
+b. Perform a logistic regression using grade as the response and the rest of the variables as regressors.
+Call this model M2. Interpret at least two of the effects of the predictors on the response.
+```{r}
+M2= glm(grade ~ gpa + tuce + psi, data=Sp, family=binomial)
+summary(M2)
+```
+When we fix other predictors, as gpa increases by 1 unit then the log-odds of grade increase as 2.82611. This is because gpa variable has coefficient as 2.826 and odds-Ratio is 
+```{r}
+exp(2.82611 )
+```
+
+When we fix other predictors, as psi increases by 1 unit then the log-odds of grade increase as 2.37869. This is because gpa variable has coefficient as 2.37869 and odds-Ratio is 
+```{r}
+exp(2.37869 )
+```
+
+c. Determine whether M2 is a good fit using appropriate methods introduced in this chapter (plots and
+tests of significance). If not a good fit, suggest at least one possible solution.
+```{r}
+
+plot(M2)
+
+```
+```{r}
+summary(M2)
+```
+
+From the Residuals vs Fitted plot, we can see the Residuals are properly small.
+Also, since the significance level of gpa and psi in the above summary table are smaller than .05, so their coefficients are significant predictor in the model.
+
+d. Using your chosen model in part c, perform a statistical test to determine whether the new teaching
+method works. Briefly explain.
+From c with p-value explanation, I want to choose the following model.
+M3 as follows.
+
+```{r}
+M3= glm(grade ~ gpa + psi, data=Sp, family=binomial)
+with(M3, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE))
+```
+The kai-square test is as above. The p-value is 0.0005726953 and this is less than .05. Therefore, M3 is good model to relate the predictors with response.

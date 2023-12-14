@@ -1,0 +1,238 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+###1. ISLR Section 8.4. Question 5
+In the case of a majority vote, the final classification would be 'Red' since in 6 out of 10 cases, P(Class is Red|X) is greater than P(Class is Green|X). In this scenario, Pavg(Class is Red|X) equals 0.45, and Pavg(Class is Green|X) equals 0.55. However, for the classification based on the average probability, the final classification would be 'Green'.
+
+\\
+\\
+###2. ISLR Section 8.4. Question 8
+```{r}
+#a)Split the data set into a training set and a test set.
+library(ISLR); set.seed(1123)
+train = sample(dim(Carseats)[1], dim(Carseats)[1]/2)
+Cartrain = Carseats[train, ]; Cartest = Carseats[-train, ]
+```
+
+\\
+```{r}
+#b)Fit a regression tree to the training set. Plot the tree, and interpret
+#the results. What test MSE do you obtain?
+
+library(tree)
+tree_car= tree(Sales ~ ., data = Cartrain)
+summary(tree_car)
+#
+plot(tree_car); text(tree_car, pretty = 0)
+#
+pred_car = predict(tree_car, Cartest); mean((Cartest$Sales - pred_car)^2)
+
+```
+\\
+```{r}
+#c)Use cross-validation in order to determine the optimal level of tree complexity. Does pruning the tree improve the test MSE?
+cv_car = cv.tree(tree_car, FUN=prune.tree)
+par(mfrow=c(1, 2))
+plot(cv_car$size, cv_car$dev, type="b"); plot(cv_car$k, cv_car$dev, type="b")
+#
+pruned_car = prune.tree(tree_car, best = 5)
+par(mfrow = c(1, 1))
+plot(pruned_car)
+text(pruned_car, pretty = 0)
+pred_pruned = predict(pruned_car, Cartest)
+mean((Cartest$Sales - pred_pruned)^2)
+```
+\\
+```{r}
+#d)Use the bagging approach in order to analyze this data. What test MSE do you obtain? Use the importance() function to determine which variables are most important.
+library(randomForest)
+set.seed(1123)
+bag_car = randomForest(Sales~., data=Cartrain, mtry = 10, ntree = 700, importance=TRUE)
+bag_car
+bag.pred = predict(bag_car, Cartest)
+mean((Cartest$Sales - bag.pred)^2); importance(bag_car)
+
+
+
+```
+From above, Price, ShelveLoc and CompPrice are the most important variables as we can see.
+\\
+```{r}
+#e) Use random forests to analyze this data. What test MSE do you obtain? Use the importance() function to determine which variables are most important. Describe the effect of m, the number of variables considered at each split, on the error rate obtained.
+err=double(10)
+test.err=double(10)
+for(mtry in 1:10){
+  rf_car = randomForest(Sales ~ ., data = Cartrain, mtry = mtry, ntree = 700, importance = TRUE)
+  err[mtry]=rf_car$mse[700]
+  rf.pred = predict(rf_car, Cartest)
+  test.err[mtry] = mean((Cartest$Sales - rf.pred)^2)
+  cat(mtry," ")
+}
+matplot(1:mtry,cbind(test.err,err),pch=19,col=c("pink","skyblue"),type="b",ylab="MSE")
+
+```
+
+```{r}
+importance(rf_car); test.err[which.min(test.err)]
+
+
+```
+
+\\
+\\
+###3. ISLR Section 8.4. Question 9
+\\
+```{r}
+#a) Create a training set containing a random sample of 800 observations, and a test set containing the remaining observations.
+library(ISLR)
+train <- sample(1:nrow(OJ), 800)
+OJ_train = OJ[train, ]
+OJ_test = OJ[-train, ]
+
+```
+```{r}
+#b) Fit a tree to the training data, with Purchase as the response and the other variables as predictors. Use the summary() function to produce summary statistics about the tree, and describe the results obtained. What is the training error rate? How many terminal nodes does the tree have?
+
+OJ_tree = tree(Purchase~., data=OJ_train); summary(OJ_tree)
+
+
+```
+The tree was constructed using only three variables, and it has seven end points. Additionally, the training error rate of the tree is 0.1512.
+
+
+```{r}
+#c) Type in the name of the tree object in order to get a detailed text output. Pick one of the terminal nodes, and interpret the information displayed.
+OJ_tree
+```
+As above reulst, we find the node 10 as indicated by the asterisk and split criterion: PriceDiff < -0.34. And number of obs. in this node is 18 with deviance. 0.000. Also, we can obtain the
+100% of obs in this node are Minute Maid Orange Juice(MM)
+```{r}
+#d) Create a plot of the tree, and interpret the results.
+
+plot(OJ_tree)
+text(OJ_tree)
+```
+The most significant predictor in this tree is LoyalCH. Additionally, there are two divisions based solely on pure node.
+```{r}
+#e) Predict the response on the test data, and produce a confusion matrix comparing the test labels to the predicted test labels. What is the test error rate?
+OJ_pred = predict(OJ_tree, OJ_test, type = "class")
+table(OJ_pred, OJ_test$Purchase)
+```
+```{r}
+1-(144+79)/270
+
+```
+The test error rate is as above.
+
+
+```{r}
+#f) Apply the cv.tree() function to the training set in order to determine the optimal tree size.
+OJ_cv <- cv.tree(OJ_tree, FUN = prune.misclass); OJ_cv
+
+#g) Produce a plot with tree size on the x-axis and cross-validated classification error rate on the y-axis.
+plot(OJ_cv$size, OJ_cv$dev, type = "b", xlab = "Tree size", ylab = "Cross-validated classification error rate")
+```
+
+##h) Which tree size corresponds to the lowest cross-validated classification error rate?
+
+>>>The tree size that corresponds to the lowest cross-validation error rate is 2~5(So as 4).
+
+\\
+```{r}
+#i) Produce a pruned tree corresponding to the optimal tree size obtained using cross-validation. If cross-validation does not lead to selection of a pruned tree, then create a pruned tree with five terminal nodes.
+#
+OJ_prune = prune.misclass(OJ_tree, best=4)
+plot(OJ_prune)
+text(OJ_prune, pretty = 0)
+#
+#j) Compare the training error rates between the pruned and unpruned trees. Which is higher?
+summary(OJ_tree)
+summary(OJ_prune)
+
+```
+```{r}
+#k) Compare the test error rates between the pruned and unpruned trees. Which is higher?
+prune.pred <- predict(OJ_prune, OJ_test, type = "class"); table(prune.pred, OJ_test$Purchase)
+```
+```{r}
+1-(125+96)/270
+
+```
+
+The test error rates are identical.
+
+
+
+
+###4. ISLR Section 8.4. Question 11
+```{r}
+#a) Create a training set consisting of the first 1,000 observations, and a test set consisting of the remaining observations.
+library(ISLR)
+train = 1:1000
+library(base)
+
+Caravan <- read.csv("https://raw.githubusercontent.com/JWarmenhoven/ISLR-python/master/Notebooks/Data/Caravan.csv")
+summary(Caravan)
+Caravan$Purchase = ifelse(Caravan$Purchase == "Yes", 1, 0)
+Car_train = Caravan[train, ]
+Car_test = Caravan[-train, ]
+
+
+```
+```{r}
+#b) Fit a boosting model to the training set with Purchase as the response and the other variables as predictors. Use 1,000 trees, and a shrinkage value of 0.01. Which predictors appear to be the most important?
+library(gbm)
+
+set.seed(1123)
+
+typeof(Caravan)
+
+boost_car = gbm(Purchase~., data=Car_train, n.trees = 1000, shrinkage = 0.01, distribution = "bernoulli")
+summary(boost_car)
+```
+
+PPERSAUT and MKOOPKLA are the two most important variables.
+
+```{r}
+#c) Use the boosting model to predict the response on the test data. Predict that a person will make a purchase if the estimated prob- ability of purchase is greater than 20 %. Form a confusion ma- trix. What fraction of the people predicted to make a purchase do in fact make one? How does this compare with the results obtained from applying KNN or logistic regression to this data set?
+boost_prob = predict(boost_car, Car_test, n.trees = 1000, type = "response")
+boost_pred = ifelse(boost_prob > 0.2, 1, 0)
+table(Car_test$Purchase, boost_pred)
+```
+```{r}
+33/(129+33)
+```
+
+
+Approximately 20% of the individuals who were predicted to make a purchase, actually made a purchase.
+
+```{r}
+lm_car = glm(Purchase~., data=Car_train, family=binomial)
+lm_prob = predict(lm_car, Car_test, type="response")
+
+```
+
+```{r}
+lm.pred = ifelse(lm_prob > 0.2, 1, 0)
+table(Car_test$Purchase, lm.pred)
+```
+```{r}
+81/(475 + 81)
+
+```
+
+Roughly 15% of the individuals who were predicted to make a purchase actually ended up making a purchase.
+
+
+
+
+
+
+
+
+
+

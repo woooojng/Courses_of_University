@@ -1,0 +1,100 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+Q1.
+
+```{r}
+library(ggplot2)
+library(ggthemes)
+library(alr4)
+library(dplyr)
+```
+
+```{r}
+help(cloud)
+head(cloud)
+```
+
+
+From the link "https://rdrr.io/rforge/alr4/man/cloud.html"
+I found the following description;
+Description
+The data summarize the results of the first Florida Area Cumulus Experiment, or FACE-1, designed to study the effectiveness of cloud seeding to increase rainfall in a target area (Woodley, Simpson, Biondini, and Berkley, 1977).
+
+Format
+This data frame contains the following columns:
+
+A
+Action, 1=seed, 0=do not seed
+
+D
+Day after June 16, 1975
+
+S
+Suitability for seeding
+
+C
+percent cloud cover in experimental area, measured using radar in Coral Gables, Florida
+
+P
+10^7 m^3 prewetness
+
+E
+echo motion category, either 1 or 2, a measure for type of cloud
+
+Rain
+10^7 m^3 in target area
+
+
+```{r}
+cloud$seed <- 1*(cloud$A = 1)
+cloud$Noseed <- 1*(cloud$A = 0)
+
+cloud$Seedexist[cloud$seed==1] <- 'Yes'
+cloud$Seedexist[cloud$Noseed==1] <- 'No'
+cloud$seedexist <- factor(cloud$Seedexist, levels = c('Yes','No'))
+cloud$seedexist
+scatterplotMatrix(cloud[,c(2:7)])
+
+```
+
+Observe that the 4th column "C" of the dataset cloud can effect the 7-th column "Rain" as exponential graph, as we can see on the (6,3) component of the avoce matrix plot.
+(For the "C" column, the 2nd row has the value as 37.9 and thus this row is the outlier.)
+So we can transfrom the "Rain" in the graph of the fitting of linear regression with x-axis "C" and y-axis "Rain" after grouping acoording to the existance of seeding(1st colum "A").
+
+
+```{r}
+cloud$LogRain <- log (cloud$Rain) 
+summary(model1 <- lm(LogRain ~S , data=cloud))
+
+#effect plot:
+summary(cloud$LogRain)
+
+ggplot( data = cloud , aes(x=S, y=LogRain )) + geom_line()
+```
+As the linear regression fitting line, we can see the coefficient of the above linear model regression has nonzero intercept(constant) "b" in the linear regression of LogRain = a*S + b with the t-test result in summary. Otherwise, the "a" in this model is zero in high probability with the t-test in the summary above.
+
+
+
+Q2. ELMR Ch1 Exercise 5.
+5. The prostate data — use lpsa as the response.
+```{r}
+pros = read.table("http://statweb.stanford.edu/~tibs/ElemStatLearn/datasets/prostate.data")
+head(pros)
+```
+
+```{r}
+scatterplotMatrix(pros[,c(1:4,6,9)])
+
+lm <-lm(data = pros, lpsa ~ lcavol)
+abline(lm)
+ggplot(pros, aes(x = lcavol, y = lpsa)) + 
+  geom_point() +
+  stat_smooth(method = "lm", col = "red")
+```
+As above I chose lcavol as the x-axis variable to see the response lpsa, based on the linear regression shape in the matrixplot.
+As we can see above, from the ggplot function, the linear regreesion red line can be fitted with the x and y variables I wrote.

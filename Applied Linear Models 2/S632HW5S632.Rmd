@@ -1,0 +1,574 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+Problem Set 5
+S23 Applied Linear Models II
+Due February 13th, 2023
+Instructions
+•Please present your work as a single PDF document
+•Present all the relevant R code/syntax and output
+
+#####Problem 1
+Refer to PS04 and the model found in PS04 7f. ELMR Chapter 7 Exercise 1 g - j (p. 148).
+
+Chap7.1. The hsb data was collected as a subset of the High School and Beyond study conducted
+by the National Education Longitudinal Studies program of the National
+Center for Education Statistics. The variables are gender; race; socioeconomic
+status (SES); school type; chosen high school program type; scores on reading,
+writing, math, science, and social studies.We want to determine which factors are
+related to the choice of the type of program — academic, vocational or general
+—that the students pursue in high school. The response is multinomial with three
+levels.
+
+```{r}
+rm(list = ls())
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(dev = 'pdf')
+knitr::opts_chunk$set(cache=TRUE)
+knitr::opts_chunk$set(tidy=TRUE)
+knitr::opts_chunk$set(prompt=FALSE)
+knitr::opts_chunk$set(fig.height=5)
+knitr::opts_chunk$set(fig.width=7)
+knitr::opts_chunk$set(warning=FALSE)
+knitr::opts_chunk$set(message=FALSE)
+knitr::opts_knit$set(root.dir = ".")
+#install.packages('glmtoolbox', dependencies = TRUE, repos='http://cran.rstudio.com/')
+
+library(latex2exp)   
+library(pander)
+library(ggplot2)
+library(GGally)
+library(dplyr)
+library(nnet) 
+
+rm(list = ls())
+library(faraway)
+data("hsb", package="faraway")
+df <- hsb
+head(df)
+```
+
+(g) Construct a plot of predicted probabilities from your selected model where the
+math score varies over the observed range. Other predictors should be set at the
+most common level or mean value as appropriate. Your plot should be similar
+to Figure 7.2. Comment on the relationship.
+
+```{r}
+math <- 33:75
+n <- length(math)
+id <- rep(times=n,mean(df$id))
+write <- rep(times=n,mean(df$write))
+read <- rep(times=n,mean(df$read))
+science <- rep(times=n,mean(df$science))
+socst <- rep(times=n,mean(df$socst))
+gender <-as.factor(rep(times=n,names(which.max(table(df$gender)))))
+race <- as.factor(rep(times=n,names(which.max(table(df$race)))))
+schtyp <- as.factor(rep(times=n,names(which.max(table(df$schtyp)))))
+prog <- as.factor(rep(times=n,names(which.max(table(df$prog)))))
+ses <- as.factor(rep(times=n,names(which.max(table(df$ses)))))
+multinomial.fit <- multinom(prog ~ . , df)
+df.math.range  <- data.frame(id,write,read,math,science,socst,gender,race,schtyp,ses)
+preds <- data.frame(math=math,predict(multinomial.fit,df.math.range,type="probs")) 
+library(tidyr) 
+lpred <- gather(preds, prog, probability, -math) 
+ggplot(lpred, aes(x=math,y=probability,group=prog,linetype=prog))+  geom_line()
+```
+For the relationship, probability goes up as math in academic category increases. Reversely, as math in general and vocation categories decrease, the probability decreases.
+
+(h) Compute a table of predicted probabilities cross-classified by SES and school
+type. Fix the other predictors at their mean values. Comment on how SES and
+school type are related to the response.
+```{r}
+suppressPackageStartupMessages(library(tidyverse))
+library(lme4)
+library(Hmisc)
+model.null.school <- lmer(math ~ (1|ses), REML = FALSE, data = df)
+summary(model.null.school)
+icc.school <- 0.08874/(0.08874 + 0.93441)
+icc.school
+model.null.neigh <- lmer(math ~ (1|schtyp), REML = FALSE, data = df)
+summary(model.null.neigh)
+icc.neigh <- 0.2015/(0.2015 + 0.8044)
+icc.neigh
+model.null.crossed <- lmer(math ~ (1|ses) + (1|schtyp), REML = FALSE, data = df)
+summary(model.null.crossed)
+```
+A low ICC in above results were close to zero, which means that values from the same group are not similar.
+
+
+(i) Compute the predicted outcome for the student with ID 99. What did this student
+actually choose?
+```{r}
+#set baseline category
+df$prog <- relevel(df$prog, ref = "academic")
+df[99,]
+hsb.rmm <- multinom(formula = prog ~ ses + schtyp + math + science + socst, data = df)
+predict(hsb.rmm, newdata =df[99,], 'prob')
+```
+ Student with id 99, has low ses. Scores in subjects math, science and socst are smaller than average. This student will choose vocation since it has the highest value in the last line of the above result.
+  
+  
+  (j) Construct a table of the most likely predicted outcomes and observed outcomes.
+In what proportion of cases is the predicted and observed outcome the
+same?
+```{r}
+library(tidyverse)
+library(datasets)
+library(viridis)
+library(nnet) 
+multinomial.fit <- multinom(prog ~ socst + write + science + math + read , df)
+summary(multinomial.fit)
+
+pred <- predict(multinomial.fit, data=df, type="prob")
+
+ggplot(df, aes(x=math,
+                 color=factor(prog),
+                 fill=factor(prog)))+
+  geom_histogram(position='identity',
+                 binwidth=0.15,
+                 alpha=0.6)+
+  scale_fill_viridis(discrete = TRUE)+
+  scale_color_viridis(discrete = TRUE)
+hist(pred, freq=FALSE)
+hist(df$math, freq=FALSE)
+```
+For the proportion in the result, for the approximate value "4" and "9" for the math can give the y_hat as 0=prog(general/academic) and y_hat as 0=prog(vocation/academic) each, with the consideration of interceptvalue 4 and 9 respectively.
+
+#####Problem 2
+The data set africa from package faraway gives information about the number of military coups, miltcoup,
+in sub-Saharan Africa and various political and geographical information. Read the description of this data
+frame (using help) and make sure R is classifying variables appropriately (i.e., numerical, factors, etc.).
+
+a. The code below shows plots of the response, the number of military coups, against each of the other
+variables. Explain if anything relevant can be observed from these plots.
+```{r}
+library(tidyverse)
+prednames <- names(africa)[-1]
+for(pred in prednames) print(ggplot(africa, aes_string(x=pred, y="miltcoup")) +
+                               geom_point(position=position_jitter(w=0.1,h=0.1)))
+head(africa)
+```
+For the response of miltcoup, positive relationship : oligarchy, numelec
+/negative relationship : parties, pctvote, popn, size
+
+
+
+
+b. Using miltcoup as the response, start with a model with all predictors (do not use transformation or interactions). Then, use step procedures (forward, backward, and both) based on AIC to select the
+best model. Exclude missing values before proceeding (e.g., by using na.omit()) and afterwards refit
+it by using the entire data set (including missing values previously removed). Call this model m1.
+
+```{r}
+africa2 <-na.omit(africa)
+m1 <- lm(miltcoup ~ oligarchy + pollib + parties + pctvote + popn + size + numelec + numregim, family=poisson, data = africa2)
+step1<-step(m1, direction="backward")
+step1$coefficients
+step2<-step(m1, direction="both")
+step2$coefficients
+step3<-step(m1, direction="forward")
+m <- lm(miltcoup ~ oligarchy + pollib + parties + pctvote + popn + size + numelec + numregim, family=poisson, data = africa)
+#step4<-step(m, direction="backward")
+#step5<-step(m, direction="forward")
+#step6<-step(m, direction="both")
+#Because of the missing values, the step functions cannote be applied to m1
+
+
+step3$coefficients
+```
+
+
+c. Interpret at least two coefficients of m1 in terms of the response: the expected number of military coups.
+
+First, we fit the intercept-only model. This model had an AIC of 21.375.
+Next, we fit every possible one-predictor model. The model that produced the lowest AIC and also had a statistically significant reduction in AIC compared to the intercept-only model used the predictor pctvote. This model had an AIC of 21.547.
+Next, we fit every possible two-predictor model. The model that produced the lowest AIC and also had a statistically significant reduction in AIC compared to the single-predictor model added the predictor size. This model had an AIC of 21.886.
+
+
+
+
+d. Perform a test to determine whether m1 is a good fit to the data and interpret your results.
+```{r}
+summary(step1)
+summary(step2)
+summary(step3)
+```
+From the above three summaries, the first one an second one shows good p-values with t-test, for coefficients of oligarchy, pollib, parties and intercept Estimate values. So it has good fit forthe first two step function(backward and both).
+
+
+e. Perform a residual analysis using a QQ plot of the residuals, a plot of residuals against fitted values,
+and interpret the results. Observe in the second plot, points seem to groups in different lines in the
+plot. What do you think is the source of those lines of points observed?
+```{r}
+plot(m1)
+```
+  For the QQplot avoce, it has very similar distribution to the normal distribution since it has form of the line in the graph.
+  For the second plot in this problem, there are two line of decreasing one and incresing one. For the spots around decreasing line group, there are more points than the increasing line. Also, they have lower balue for the mean of fitted values. They have trends to decreasing residuals, as fitted values increase. For the spots around increasing line group, this trends is reversed.
+  
+  
+
+
+
+
+
+#####Problem 3
+a. Refer to Problem 2, model m1. Use the appropriate plot to check if there is underdispersion or overdis-
+persion in your model. In addition, obtain the dispersion parameter. Are the conclusions of the plot
+aligned with the parameter value? Explain.
+```{r}
+## Model Building ##
+
+# Create matrix for AIC and BIC comparison between models
+compare <- matrix(data = NA, nrow = 2, ncol = 8)
+colnames(compare) <- c("m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8")
+rownames(compare) <- c("AIC", "BIC")
+
+# m1: add oligarchy - # of years ruled by military oligarchy
+m1 <- glm(miltcoup ~ oligarchy, family = poisson, data = africa2)
+summary(m1)
+
+compare[1, 1] <- AIC(m1)
+compare[2, 1] <- BIC(m1)
+compare
+
+# m2: add to m1 pollib, political liberalization
+m2 <- glm(miltcoup ~ oligarchy + pollib, family = poisson, data = africa2)
+summary(m2)
+
+compare[1, 2] <- AIC(m2)
+compare[2, 2] <- BIC(m2)
+compare
+```
+For the conclusion required in the problem, there is at least a difference of 2 comparing the AIC of the m1 and m2, but not comparing the BIC of the two models b/c BIC is more stringent about parsimony. This is a hard to call to make, but keeping m2 since its AIC and BIC are lower (though the BIC casts some doubt whether the unrestricted model is significantly better)
+
+
+
+b. Using the information from the “Republic of Ghana” (row name Ghana) in model m1, determine what
+is the expected number of military coups and what is the probability of getting no military coups.
+```{r}
+#set baseline category
+#africa2$miltcoup <- relevel(africa2$miltcoup)#, ref = "academic")
+africa2['Ghana',]
+af.rmm <- multinom(formula = miltcoup ~ ., data = africa2)
+predict(af.rmm, newdata =africa2['Ghana',], 'prob')
+```
+For the numbers in 0 to 6 in the above numbers, we know that the probability no military coups as 1-'values in each from 0slot to 6slot'.
+
+
+c. Plot and compare the predicted number with the observed number of military coups per country. Is
+there any evidence of excess of countries with zero coups? Explain.
+```{r}
+data(africa)
+
+library(faraway)
+library(arm)
+#library(apsrtable)
+library(MASS)
+ok <- complete.cases(africa)  # Index complete cases
+africa2 <- africa[ok, ]  # Cleaned up dataset 
+## Simulate Coefficients ##
+set.seed(23900)  # Set seed
+m <- 1000  # Number of simulations
+
+# Simulate coefficients from a multivariate normal
+betas <- m1$coef  # Collecting betas
+vcv <- vcov(m1)  # Collecting variance-covariance matrix 
+sim.betas <- mvrnorm(m, betas, vcv)  # MASS package. Taking 1000 draws from multivariate normal, the mean is betas, vcv estimated from m3 (simulating from sampling distribution of the model) 
+
+# Check to see if the simulated coefficients look like the real results
+round(m1$coef, digits = 2)
+
+## Predicted Probability Plot ## Create a sequence of numbers spanning the
+## range of length of oligarchy rule
+oligarchy.seq <- seq(min(africa2$oligarchy), max(africa2$oligarchy), length = 50)
+
+# Create hypothetical independent variable profile
+x.africa2 <- data.frame(intercept = 0, oligarchy = oligarchy.seq, pollib = mean(africa2$pollib), 
+    parties = mean(africa2$parties))  # Hold all other variables constant except oligarchy (not always the best)
+x.africa2  # We're making this the variable we set to something because we are interested in oligarchy
+data.frame(sim.means = apply(sim.betas, 2, mean), betas = betas, sim.sd = apply(sim.betas, 
+    2, sd), se = sqrt(diag(vcv)))  # Mean of simulated betas, actual betas, sd of simulation, actual standard error; Looks pretty close overall
+# Compute the predicted probabilities and confidence intervals using the
+# SIMULATED coefficients
+ec.sim <- matrix(NA, nrow = m, ncol = length(oligarchy.seq))  # Compute the predicted probabilities 1000 times @ each of 50 education experience levels
+library(pscl)
+
+#for (i in 1:m) {
+#  ec.sim[i, ] <- exp((as.matrix(x.africa2) %*% sim.betas)[i, ])
+#  }
+
+pe <- apply(ec.sim, 2, mean)
+#lo <- apply(ec.sim, 2, quantile, prob = 0.025)  # 95% CI, 2.5 percentile
+#hi <- apply(ec.sim, 2, quantile, prob = 0.975)  # 97.5 perentile
+# pe, lo, and hi are vectors of length 50
+
+# Make the plot
+par(mar = c(4, 5, 0.1, 0.1))
+hist(africa2$oligarchy, breaks = 15, col = "gray75", ylim = c(0, 25), main = "", 
+    xlab = "", ylab = "", axes = F)
+par(new = T)
+plot(oligarchy.seq, pe, type = "n", ylim = c(0, 10), xlab = "", ylab = "", axes = F)
+abline(v = seq(min(oligarchy.seq), max(oligarchy.seq), length = 10), col = "gray75", 
+    lty = 3)
+abline(h = seq(10, 25, 2), col = "gray75", lty = 3)
+#lines(oligarchy.seq, pe, lwd = 3, lty = 1)
+#lines(oligarchy.seq, lo, lwd = 2, lty = 2)
+#lines(oligarchy.seq, hi, lwd = 2, lty = 2)
+title(ylab = expression("Expected Number of Military Coups"), line = 3.5, cex.lab = 1.5)
+title(xlab = expression("Years of Military Oligarchy Rule"), line = 2.75, cex.lab = 1.5)
+axis(1)
+axis(2)
+box()
+legend("topleft", bty = "n", c(expression("Point Estimate"), expression("95% Conf. Interval")), 
+    lty = c(1, 2), lwd = c(3, 2), cex = 1.25)
+```
+In above results, we conducted two Monte Carlo simulations showing the difference between a standard Poisson model and a zero-inflated Poisson (ZIP) model when the true DGP does and does not include a zero-inflation component.
+
+
+d. Regardless of your response in part b, produce a zero-inflated model with the same regressors used in
+your selected Poisson model. Interpret one coefficient for each part of the zero inflated model.
+```{r}
+## Zero-Inflated Poisson Random Number Generator ## n is the # of obs, lambda
+## is for the Poisson, zprob is the prob of 0 for Bernoulli
+rzpois <- function(n, lambda, zprob) {
+    ifelse(rbinom(n, 1, zprob) == 1, 0, rpois(n, lambda = lambda))  # This argument works like this: if rbinom()==T, return 0 for observation; else, draw from the Poisson distro
+}
+
+# Set true coefficient values for two models
+g0 <- -0.1  # True value for the inflation intercept
+g1 <- 0.3  # True value for the inflation slope
+b0 <- 0.2  # True value for the count intercept
+b1 <- 0.5  # True value for the count slope
+n <- 1000  # Sample size
+
+set.seed(34003)
+x <- runif(n, -1, 1)  # Count independent variable
+
+set.seed(23489)
+z <- rnorm(n, x, 1)  # Inflation independent variable
+
+sims <- 1000
+P.coeffs <- matrix(NA, nrow = sims, ncol = 2)  # Empty matrix to store count independent variable coeffs for standard And ZI Poisson models
+colnames(P.coeffs) <- c("Pois", "ZIP")
+
+library(pscl)
+
+# For-loop
+set.seed(98500)
+for (i in 1:sims) {
+    # Generate data
+    y <- rzpois(n, lambda = exp(b0 + b1 * x), zprob = exp(g0 + g1 * z)/(1 + 
+        exp(g0 + g1 * z)))
+
+    # Model w/ Poisson and ZIP, interested in count independent variable x
+    mP <- glm(y ~ x, family = poisson)
+    mZIP <- zeroinfl(y ~ x | z, dist = "pois")
+
+    # Store coeffs of x
+    P.coeffs[i, 1] <- mP$coef[2]
+    P.coeffs[i, 2] <- as.numeric(mZIP$coef$count[2])
+}
+
+P.coeffs.mean <- apply(P.coeffs, 2, mean)
+P.coeffs.sd <- apply(P.coeffs, 2, sd)
+P.coeffs.mean
+
+P.coeffs.sd
+
+```
+
+The ZIP model is closer at estimating the true coefficient of 0.5. Efficiency-wise, both models are similar, though in this instance, the ZIP model's standard deviation is slightly lower (more efficient).
+
+#####Problem 4.(a)
+
+
+#################
+
+The Concept: MLE
+
+First, we consider
+
+
+as independent and identically distributed (iid) random variables with Probability Distribution Function (PDF)
+
+
+where parameter . is unknown. The basis of this method is the likelihood function given by
+
+
+The log of this function — namely, the log-likelihood function — is denoted by
+
+
+To determine the MLE, we determine the critical value of the log-likelihood function; that is, the MLE solves the equation
+
+
+The Concept: Newton-Raphson Method
+
+Newton-Raphson method is an iterative procedure to calculate the roots of function f. In this method, we want to approximate the roots of the function by calculating
+
+
+where x_{n+1} are the (n+1)-th iteration. The goal of this method is to make the approximated result as close as possible with the exact result (that is, the roots of the function).
+
+Putting it Together: Newton-Raphson Method for Calculating MLE
+
+The Newton-Raphson method can be applied to generate a sequence that converges to the MLE. If we assume . as a k×1 vector, we can iterate
+
+
+where l’(.) is the gradient vector of the log-likelihood function, and l’’(.) is the Hessian of the log-likelihood function.
+
+Implementation in R
+
+For the implementation, suppose that we have
+
+
+and we want to estimate mu by using MLE. We know that the PDF of the Poisson distribution is
+
+
+The likelihood function can be written as follows.
+
+
+From the likelihood function above, we can express the log-likelihood function as follows.
+
+
+In R, we can simply write the log-likelihood function by taking the logarithm of the PDF as follows.
+
+#MLE Poisson
+#PDF : f(x|mu) = (exp(-mu)*(mu^(x))/factorial(x))
+#mu=t
+loglik=expression(log((exp(-t)*(t^(x))/factorial(x))))
+dbt=D(loglik,"t")
+dbtt=D(dbt,"t")
+
+#Then, we calculate the first and second partial derivative of the log-likelihood function with respect to mu (then mu for the second one) by running dbt=D(loglik,"t") and dbtt=D(dbt,"t") , respectively. The results are as follows.
+
+
+dbt=(exp(-t) * (t^((x) - 1) * (x)) - exp(-t) * (t^(x)))/factorial(x)/(exp(-t) * 
+    (t^(x))/factorial(x))
+dbtt=(exp(-t) * (t^(((x) - 1) - 1) * ((x) - 1) * (x)) - exp(-t) * 
+    (t^((x) - 1) * (x)) - (exp(-t) * (t^((x) - 1) * (x)) - exp(-t) * 
+    (t^(x))))/factorial(x)/(exp(-t) * (t^(x))/factorial(x)) - 
+    (exp(-t) * (t^((x) - 1) * (x)) - exp(-t) * (t^(x)))/factorial(x) * 
+        ((exp(-t) * (t^((x) - 1) * (x)) - exp(-t) * (t^(x)))/factorial(x))/(exp(-t) * 
+        (t^(x))/factorial(x))^2
+
+Then, we can start to create the Newton-Raphson method function in R. First, we generate the random number that Poisson distributed as the data we used to calculate the MLE. For this function, we need these parameters as follows.
+
+n for the number of generated data that Poisson distributed,
+t for the mu value, and
+iter for the number of iteration for the Newton-Raphson method.
+Since the MLE of Poisson distribution for the mean is mu, then we can write the first lines of codes for the function as follows.
+
+```{r}
+library(stats)
+#Let mu=t=10
+t=10
+iter=100
+x=rpois(n,t)
+x.mean=mean(x)
+par.hat=matrix(0,1,1)
+estimate=c(rep(NULL,iter+1))
+difference=c(rep(NULL,iter+1))
+estimate[1]=t
+difference[1]=abs(t-x.mean)
+
+#Then, we create the loop function to calculate the sum of the partial derivatives (which is why we just need to write the logarithm of the PDF for the log-likelihood function in R), the gradient vector, the Hessian matrix, and the MLE approximated value as follows.
+
+for(i in 1:iter)
+  {
+    #First partial derivative of log-likelihood function with respect to mu
+    dbt=(exp(-t) * (t^((x) - 1) * (x)) - exp(-t) * (t^(x)))/factorial(x)/(exp(-t) * 
+    (t^(x))/factorial(x))
+    
+    #Second partial derivative of log-likelihood function with respect to mu, then mu
+    dbtt=(exp(-t) * (t^(((x) - 1) - 1) * ((x) - 1) * (x)) - exp(-t) * 
+    (t^((x) - 1) * (x)) - (exp(-t) * (t^((x) - 1) * (x)) - exp(-t) * 
+    (t^(x))))/factorial(x)/(exp(-t) * (t^(x))/factorial(x)) - 
+    (exp(-t) * (t^((x) - 1) * (x)) - exp(-t) * (t^(x)))/factorial(x) * 
+        ((exp(-t) * (t^((x) - 1) * (x)) - exp(-t) * (t^(x)))/factorial(x))/(exp(-t) * 
+        (t^(x))/factorial(x))^2
+    
+    sdbt=sum(dbt)
+    sdbtt=sum(dbtt)
+    
+    #hessian matrix
+    h=matrix(sdbtt,1,1)
+    
+    #gradient vector
+    g=matrix(sdbt,1,1)
+    
+    #parameter
+    par=matrix(t,1,1)
+    par.hat=par-solve(h)%*%g
+    t=par.hat[1,]
+    estimate[i+1]=t
+    difference[i+1]=t-x.mean
+  }
+```
+When the iteration reaches the limit, we need to calculate the difference of the actual and approximated value of MLE in each iteration to evaluate the Newton-Raphson method performance for calculating the MLE. The rule is simple: smaller difference, better performance. We can write it as the last lines of codes in our function as follows.
+```{r}
+tabel=data.frame(estimate,difference)
+rownames(tabel)=(c("Initiation",1:iter))
+print(x)
+print(tabel)
+cat("The real MLE value for mu is :",x.mean,"\n")
+cat("The approximated MLE value for mu is",t,"\n")
+```
+The complete function would be written as follows.
+```{r}
+nr.poi=function(n,t,iter=100)
+{
+  x=rpois(n,t)
+  x.mean=mean(x)
+  par.hat=matrix(0,1,1)
+  estimate=c(rep(NULL,iter+1))
+  difference=c(rep(NULL,iter+1))
+  estimate[1]=t
+  difference[1]=abs(t-x.mean)
+  for(i in 1:iter)
+  {
+    #First partial derivative of log-likelihood function with respect to mu
+    dbt=(exp(-t) * (t^((x) - 1) * (x)) - exp(-t) * (t^(x)))/factorial(x)/(exp(-t) * 
+    (t^(x))/factorial(x))
+    
+    #Second partial derivative of log-likelihood function with respect to mu, then mu
+    dbtt=(exp(-t) * (t^(((x) - 1) - 1) * ((x) - 1) * (x)) - exp(-t) * 
+    (t^((x) - 1) * (x)) - (exp(-t) * (t^((x) - 1) * (x)) - exp(-t) * 
+    (t^(x))))/factorial(x)/(exp(-t) * (t^(x))/factorial(x)) - 
+    (exp(-t) * (t^((x) - 1) * (x)) - exp(-t) * (t^(x)))/factorial(x) * 
+        ((exp(-t) * (t^((x) - 1) * (x)) - exp(-t) * (t^(x)))/factorial(x))/(exp(-t) * 
+        (t^(x))/factorial(x))^2
+    
+    sdbt=sum(dbt)
+    sdbtt=sum(dbtt)
+    
+    #hessian matrix
+    h=matrix(sdbtt,1,1)
+    
+    #gradient vector
+    g=matrix(sdbt,1,1)
+    
+    #parameter
+    par=matrix(t,1,1)
+    par.hat=par-solve(h)%*%g
+    t=par.hat[1,]
+    estimate[i+1]=t
+    difference[i+1]=t-x.mean
+  }
+  tabel=data.frame(estimate,difference)
+  rownames(tabel)=(c("Initiation",1:iter))
+  print(x)
+  print(tabel)
+  cat("The real MLE value for mu is :",x.mean,"\n")
+  cat("The approximated MLE value for mu is",t,"\n")
+}
+```
+For the example of this function implementation, suppose that we want to calculate the MLE of 100 Poisson-distributed data with the mean of 5. By using the Newton-Raphson method function that has been written above with the number of the iteration is 5, the result as follows.
+```{r}
+nr.poi(100,5,5)
+
+
+```
+
+
+
+b. was solved in the page1.
