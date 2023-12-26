@@ -42,6 +42,7 @@ The dataset utilized in this project was sourced from a public Kaggle profile. I
 - gdpp: GDP per capita, calculated as the Total GDP divided by the total population.
 
 ```{r}
+#data reference site : https://www.kaggle.com/datasets/rohan0301/unsupervised-learning-on-country-data/data
 country <- read.csv("Country-data.csv")
 #str(country)
 ```
