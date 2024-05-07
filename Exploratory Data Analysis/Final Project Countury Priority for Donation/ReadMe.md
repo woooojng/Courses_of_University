@@ -1,4 +1,4 @@
-# Setting Priorities for Country Donation.
+# S670 Course Final Project : Setting Priorities for Country Donation.
 
 
 The objective of this project is to classify countries based on socio-economic and health factors that play a crucial
