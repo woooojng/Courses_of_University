@@ -1,4 +1,4 @@
-# P 556: APPLIED MACHINE LEARNING Course in Computer Science Department - Discripttion on Final Project and HWs
+# P 556: APPLIED MACHINE LEARNING Course in Computer Science Department - Short description on Final Project and HWs
 
 ### Final Project : Home Credit Default Risk Project
 The course project is based on the Home Credit Default Risk (HCDR) Kaggle Competition.
