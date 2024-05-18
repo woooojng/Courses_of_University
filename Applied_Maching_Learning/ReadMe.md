@@ -1,5 +1,12 @@
 # P 556: APPLIED MACHINE LEARNING Course in Computer Science Department
 
+### Final Project : Home Credit Default Risk Project
+The course project is based on the Home Credit Default Risk (HCDR) Kaggle Competition.
+The aim of this final project on the Home Credit Default Risk dataset is to develop a predictive model that accurately predicts whether a client will default on a loan. We got the following results for each Phase.
+
+#### On the Phase3, I worked as leader for this team. The following is the goal and achievement of our team on this phase3.
+Phase3: To address the imbalance issue identified in the Home Credit Default Risk dataset, Synthetic Minority Over-sampling Technique (SMOTE) was applied. Both logistic regression and gradient boosting models, after hyperparameter tuning, feature selection, and SMOTE, demonstrated high accuracy for 'No Default' predictions across training, validation, and test sets. The inclusion of SMOTE improved the 'Default' prediction capabilities of both models compared to those without SMOTE, leading to improved classification performance. Models were evaluated based on logistic regression (LR) and gradient boosting (GB) with hyperparameter tuning and feature selection. Models incorporating feature selection alongside hyperparameter tuning showed slightly improved Test AUC scores compared to those without feature selection. Models applying hyperparameter tuning, feature selection, and SMOTE showed substantial improvement in F1 scores on the test set, with the gradient boosting model achieving the highest Test F1 Score and Test AUC among all models.
+
 ### HW 02 - KNN: classification, regression + EDA + ML pipelines
 Outcomes and Goals:
 - Describe the K-nearest-neighbors (KNN) algorithm for both regression and classification
